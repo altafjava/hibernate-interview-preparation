@@ -51,21 +51,22 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     ```
 
 15. How to register EventListener?
+
     To register the event listeners, we need to create our own implementation of `org.hibernate.integrator.spi.Integrator` interface. The main use of Integrator is to register the event listeners. Create a class and implements `org.hibernate.integrator.spi.Integrator` and override its methods.
 
-            ```java
-            public void integrate(Metadata metadata, SessionFactoryImplementor sessionFactory, SessionFactoryServiceRegistry serviceRegistry)
+    ```java
+      public void integrate(Metadata metadata, SessionFactoryImplementor sessionFactory, SessionFactoryServiceRegistry serviceRegistry)
 
-            public void integrate(Metadata metadata, BootstrapContext bootstrapContext, SessionFactoryImplementor sessionFactory)
+      public void integrate(Metadata metadata, BootstrapContext bootstrapContext, SessionFactoryImplementor sessionFactory)
 
-            public void disintegrate(SessionFactoryImplementor sessionFactory, SessionFactoryServiceRegistry serviceRegistry)
-            ```
+      public void disintegrate(SessionFactoryImplementor sessionFactory, SessionFactoryServiceRegistry serviceRegistry)
+    ```
 
     The Integrator is then registered with the persistent context with the help of `BootstrapServiceRegistryBuilder`. Note that `BootstrapServiceRegistry` is intended to hold mainly 3 services that Hibernate needs at both bootstrap and run time.
 
-        1. ClassLoaderService
-        2. IntegratorService
-        3. StrategySelector.
+    1. ClassLoaderService
+    2. IntegratorService
+    3. StrategySelector.
 
     After creating the `BootstrapServiceRegistery`, Now supply the custom `BootstrapServiceRegistry` instance to the `StandardServiceRegistry` and build the SessionFactory.
 
@@ -172,20 +173,20 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
 
 24. delete()/remove()
 
-        Both methods are used to delete a single entity. If the passed entity is not present in the database then we shall get an ObjectNotFoundException. Both methods work on DETACHED entities as well if we are using Hibernate Session. But in the case of JPA, the EntityManager delete() method cannot delete the DETACHED entity. This will give IllegalArgumentException.
+    Both methods are used to delete a single entity. If the passed entity is not present in the database then we shall get an ObjectNotFoundException. Both methods work on DETACHED entities as well if we are using Hibernate Session. But in the case of JPA, the EntityManager delete() method cannot delete the DETACHED entity. This will give IllegalArgumentException.
 
-        ```java
-        EmployeeEntity employee = entityManager.find(Employee.class, 1L);
-        entityManager.detach(employee);
-        entityManager.remove(employee);
-        ```
+    ```java
+     EmployeeEntity employee = entityManager.find(Employee.class, 1L);
+     entityManager.detach(employee);
+     entityManager.remove(employee);
+    ```
 
-        If there is any associated entity, then first associated entity will be deleted then the parent entity. delete() method is deprecated since Hibernate 6.0. It is recommended to use the remove() method.
+    If there is any associated entity, then first associated entity will be deleted then the parent entity. delete() method is deprecated since Hibernate 6.0. It is recommended to use the remove() method.
 
-        ```sql
-        Hibernate: delete from Address where id=?
-        Hibernate: delete from Employee where id=?
-        ```
+    ```sql
+    Hibernate: delete from Address where id=?
+    Hibernate: delete from Employee where id=?
+    ```
 
     The EntityManager.remove() and Session.remove() methods are a better fit when we want to delete a single Entity but inefficient if we want to remove a list of entities. For each remove() call, hibernate loads the entity, performs the lifecycle transition to REMOVED and triggers the SQL DELETE operation. Executing N different SQL DELETE queries for N entities will lead to very inefficient performance. It’s often better to remove such a list of entities with a JPQL query.
 
@@ -233,21 +234,21 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     @Id
     @SequenceGenerator(name="myseq",sequenceName="HIB_SEQ")
     @GeneratedValue(strategy=SEQUENCE,generator="seq")
-    private Integer employeeId;
+    private Integer eid;
     ```
 
-    In this annotation name attribute is mandatory. A new table will be created with the name hib_seq. If we don’t provide the sequenceName attribute then myseq table will be created.
+    In this annotation name attribute is mandatory. A new table will be created with the name `hib_seq`. If we don’t provide the sequenceName attribute then myseq table will be created.
 
 29. @TableGenerator
 
-    This annotation is used in a very similar way to the @SequenceGenerator annotation, but because it manipulates a standard database table to obtain its primary key values, instead of using a vendor-specific sequence object, it is guaranteed to be portable between database platforms. It is the same as @GeneratedValue(strategy = GenerationType.TABLE). It creates a table with two columns sequence_name and next_val.
+    This annotation is used in a very similar way to the @SequenceGenerator annotation, but because it manipulates a standard database table to obtain its primary key values, instead of using a vendor-specific sequence object, it is guaranteed to be portable between database platforms. It is the same as `@GeneratedValue(strategy = GenerationType.TABLE)`. It creates a table with two columns `sequence_name` and `next_val`.
 
     ```java
     @Id
     @GeneratedValue(strategy=GenerationType.TABLE,generator="employee_generator")
     @TableGenerator(name="employee_generator", table="pk_table",
     pkColumnName="name", valueColumnName="value", allocationSize=100)
-    private Integer employeeId;
+    private Integer eid;
     ```
 
     Only the name attribute is mandatory. Rest are optional.
@@ -273,13 +274,315 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
 
 31. @OneToOne
 
-    There are primarily 3 ways to create one-to-one relationships between two entities.
+    There are primarily 4 ways to create one-to-one relationships between two entities.
 
     1. The first technique is widely used and uses a foreign key column in one of the tables.
     2. The second technique uses a rather known solution of having a join table to store the mapping between the first two tables.
     3. The third technique is something new that uses a common primary key in both tables.
 
-    Using a Foreign Key Association:- In this kind of association, a foreign key column is created in the owner entity. For example, we have made an Employee owner, then an extra column accountId will be created in the Employee table. This column will store the foreign key for the Account table.
+    **Using a Foreign Key Association/Join Column:** In this kind of association, a foreign key column is created in the owner entity. For example, we have made `Employee` entity as an owner, then an extra column `accountId` will be created in the `employee` table. This column will store the foreign key for the Account table.
+
+    ```java
+     @Table
+     @Entity
+     public class Employee implements Serializable {
+       @Id
+       @GeneratedValue(strategy = GenerationType.IDENTITY)
+       private int eid;
+       private String firstName;
+       private String lastName;
+       private double salary;
+       @OneToOne(cascade = CascadeType.PERSIST)
+       @JoinColumn(name = "accountId") // accountId will become foreign in employee table
+       private Account account;
+     }
+    ```
+
+    ```java
+    @Table
+    @Entity
+    public class Account {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int aid;
+      private String accountNo;
+      private String branch;
+    }
+    ```
+
+    ```java
+    Employee employee = new Employee();
+    employee.setFirstName("David");
+    employee.setLastName("Warner");
+    employee.setSalary(56789);
+    Account account=new Account();
+    account.setAccountNo("ACC123");
+    account.setBranch("Australia");
+    employee.setAccount(account);
+
+    session.persist(employee);
+    ```
+
+    In the `Employee` class if don't cascade the `Account` class then we shall get an exception saying:
+
+    ```java
+    Exception in thread "main" java.lang.IllegalStateException: org.hibernate.TransientObjectException: object references an unsaved transient instance - save the transient instance before flushing: com.altafjava.entity.Account
+    ```
+
+    If we want no cascading then 1st we need to persist the Account entity then persist the Employee entity.
+
+    ```java
+    Account account=new Account();
+    account.setAccountNo("ACC123");
+    account.setBranch("Australia");
+    session.persist(account);
+
+    Employee employee = new Employee();
+    employee.setFirstName("David");
+    employee.setLastName("Warner");
+    employee.setSalary(56789);
+    employee.setAccount(account);
+    session.persist(employee);
+    ```
+
+    Generated Query:
+
+    ```sql
+    Hibernate: create table Account (aid integer not null auto_increment, accountNo varchar(255), branch varchar(255), primary key (aid)) engine=MyISAM
+
+    Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, accountId integer, primary key (eid)) engine=MyISAM
+
+    Hibernate: alter table Employee add constraint FKcs7jiub5myswnmgqtnp1uj1fi foreign key (accountId) references Account (aid)
+
+    Hibernate: insert into Account (accountNo, branch) values (?, ?)
+
+    Hibernate: insert into Employee (accountId, firstName, lastName, salary) values (?, ?, ?, ?)
+
+    Hibernate: select e1_0.eid,a1_0.aid,a1_0.accountNo,a1_0.branch,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 left join Account a1_0 on a1_0.aid=e1_0.accountId where e1_0.eid=?
+    ```
+
+    If we don't write `@JoinColumn` in the owner entity `Employee` then defaults apply. A new column will be created in the parent table `Employee` with name `account_aid`. Means concatenation of child table name(account), underscore(\_) and child table primary key(aid).
+
+    ```sql
+    Hibernate: alter table Employee add constraint FKf5cbit5cfn86kiuergvpbidcr foreign key (account_aid) references Account (aid)
+    ```
+
+    In a bidirectional association, only one of the sides has to be the owner. The owner is responsible for the association column(s) update. The child entity who is not responsible of managing the relationship uses `mappedBy` attribute in @OneToOne annotation. The `mappedBy` refers to the property name which is declared in the owner's side.
+
+    ```java
+    public class Account {
+      private int aid;
+      private String accountNo;
+      private String branch;
+      @OneToOne(mappedBy = "account")
+      private Employee employee;
+    }
+    ```
+
+    If we don't use this `mappedBy` attribute then both the table will become owner table and stores the foreign key of each others. Employee will store Account's primary and Account will store Employee's primary key.
+
+    ```sql
+      Hibernate: create table Account (aid integer not null auto_increment, accountNo varchar(255), branch varchar(255), employee_eid integer, primary key (aid)) engine=MyISAM
+
+      Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, accountId integer, primary key (eid)) engine=MyISAM
+
+      Hibernate: alter table Account add constraint FKehpisc8myx4mq7peeu83gl5c4 foreign key (employee_eid) references Employee (eid)
+
+      Hibernate: alter table Employee add constraint FKrwcsuf6gqdo5nbhro5avjqg6y foreign key (accountId) references Account (aid)
+
+      Hibernate: insert into Account (accountNo, branch, employee_eid) values (?, ?, ?)
+
+      Hibernate: insert into Employee (accountId, firstName, lastName, salary) values (?, ?, ?, ?)
+    ```
+
+    **Using a Join Table:** In this approach, Hibernate will create a new table/3rd table that will store the primary key values from both the entities. In this technique `@JoinTable` is used. This annotation is used to define the new table and foreign keys from both of the tables.
+
+    ```java
+      @Table
+      @Entity
+      public class Employee  {
+         @Id
+         @GeneratedValue(strategy = GenerationType.IDENTITY)
+         private int eid;
+         private String firstName;
+         private String lastName;
+         private double salary;
+         @OneToOne(cascade = CascadeType.PERSIST)
+         @JoinTable(name = "employee_account", joinColumns = @JoinColumn(name = "employeeId"), inverseJoinColumns = @JoinColumn(name = "accountId"))
+         private Account account;
+      }
+    ```
+
+    ```java
+      @Table
+      @Entity
+      public class Account {
+         @Id
+         @GeneratedValue(strategy = GenerationType.IDENTITY)
+         private int aid;
+         private String accountNo;
+         private String branch;
+      }
+    ```
+
+    ```sql
+      Hibernate: create table Account (aid integer not null auto_increment, accountNo varchar(255), branch varchar(255), primary key (aid)) engine=MyISAM
+
+      Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+
+      Hibernate: create table employee_account (accountId integer, employeeId integer not null, primary key (employeeId)) engine=MyISAM
+
+      Hibernate: alter table employee_account add constraint FKcf0q6b690ussmm11u4s08nixj foreign key (accountId) references Account (aid)
+
+      Hibernate: alter table employee_account add constraint FKnvb8g9m5qlhk1752cq9muifk7 foreign key (employeeId) references Employee (eid)
+
+      Hibernate: insert into Account (accountNo, branch) values (?, ?)
+
+      Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+
+      Hibernate: insert into employee_account (accountId, employeeId) values (?, ?)
+    ```
+
+    `@JoinTable` annotation is used in `Employee` entity class. It declares that a new table `employee_account` will be created with two columns `employeeId` (primary key of employee table) and `accountId` (primary key of account table). In this annotation `name` attribute is mandatory, rest are optional. So, if we write only
+
+    ```java
+    @JoinTable(name="employee_account")
+    private Account account;
+    ```
+
+    then still it will work. It will create column names as `account_aid`(concatenation of child table name, underscore and primary key of its table) & `eid`(primary key of the owner entity).
+
+    If we want bidirectional association then in the child entity we need to use `@OneToOne(mappedBy = "account")`.
+
+    ```java
+      public class Account {
+         private int aid;
+         private String accountNo;
+         private String branch;
+         @OneToOne(mappedBy = "account")
+         private Employee employee;
+      }
+    ```
+
+    If we don't write `mappedBy` attribute then `Account` entity will create an extra column `employee_eid` as foreign key and store Employee's primary key.
+
+    ```sql
+      Hibernate: create table Account (aid integer not null auto_increment, accountNo varchar(255), branch varchar(255), employee_eid integer, primary key (aid)) engine=MyISAM
+
+      Hibernate: alter table Account add constraint FKejw579y4swv5plx8wfxh4bxk5 foreign key (employee_eid) references Employee (eid)
+    ```
+
+    **Using a Shared Primary Key:** In this technique, Hibernate will ensure that it will use a common primary key value in both tables. This way primary key of `Employee` Entity can safely be assumed the primary key of `Account` Entity also. In this approach, `@PrimaryKeyJoinColumn` is the main annotation to be used in the owner's entity.
+
+    ```java
+      @Table
+      @Entity
+      public class Employee  implements Serializable{
+         @Id
+         @GeneratedValue(strategy = GenerationType.IDENTITY)
+         private int eid;
+         private String firstName;
+         private String lastName;
+         private double salary;
+         @OneToOne(cascade = CascadeType.PERSIST)
+         @PrimaryKeyJoinColumn
+         private Account account;
+      }
+    ```
+
+    ```java
+      @Table
+      @Entity
+      public class Account implements Serializable{
+         @Id
+         @GeneratedValue(strategy = GenerationType.IDENTITY)
+         private int aid;
+         private String accountNo;
+         private String branch;
+      }
+    ```
+
+    ```sql
+      Hibernate: create table Account (aid integer not null auto_increment, accountNo varchar(255), branch varchar(255), primary key (aid)) engine=MyISAM
+
+      Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+
+      Hibernate: insert into Account (accountNo, branch) values (?, ?)
+
+      Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+    ```
+
+    If we want bidirectional association then in the child entity we need to use `@OneToOne(mappedBy = "account")`.
+
+    ```java
+      public class Account {
+         private int aid;
+         private String accountNo;
+         private String branch;
+         @OneToOne(mappedBy = "account")
+         private Employee employee;
+      }
+    ```
+
+    If we don't write `mappedBy` attribute then `Account` entity will create an extra column `employee_eid` as foreign key and store Employee's primary key.
+
+    ```sql
+      Hibernate: create table Account (aid integer not null auto_increment, accountNo varchar(255), branch varchar(255), employee_eid integer, primary key (aid)) engine=MyISAM
+
+      Hibernate: alter table Account add constraint FKejw579y4swv5plx8wfxh4bxk5 foreign key (employee_eid) references Employee (eid)
+    ```
+
+    **Using a Shared Primary Key:** In this technique, Hibernate assumes both the source and target share the same primary key values. For that we use `@MapsId` annotation. The parent-side association becomes redundant(its primary key will no longer be needed).
+
+    ```java
+      @Table
+      @Entity
+      public class Employee  implements Serializable{
+         @Id
+         @GeneratedValue(strategy = GenerationType.IDENTITY)
+         private int eid;
+         private String firstName;
+         private String lastName;
+         private double salary;
+         @OneToOne(cascade = CascadeType.PERSIST)
+         @MapsId
+         private Account account;
+      }
+    ```
+
+    ```java
+      @Table
+      @Entity
+      public class Account implements Serializable{
+         @Id
+         @GeneratedValue(strategy = GenerationType.IDENTITY)
+         private int aid;
+         private String accountNo;
+         private String branch;
+         @OneToOne(mappedBy = "account")
+         private Employee employee;
+      }
+    ```
+
+    ```sql
+      Hibernate: create table Account (aid integer not null auto_increment, accountNo varchar(255), branch varchar(255), primary key (aid)) engine=MyISAM
+
+      Hibernate: create table Employee (firstName varchar(255), lastName varchar(255), salary float(53) not null, account_aid integer not null, primary key (account_aid)) engine=MyISAM
+
+      Hibernate: alter table Employee add constraint FKf5cbit5cfn86kiuergvpbidcr foreign key (account_aid) references Account (aid)
+
+      Hibernate: insert into Account (accountNo, branch) values (?, ?)
+
+      Hibernate: insert into Employee (firstName, lastName, salary, account_aid) values (?, ?, ?, ?)
+    ```
+
+    **Note:** For bidirectional association any of the technique it is must to write `@OneToOne` annotation either with or without `mappedBy` attribute. If not then we shall get exception:
+
+    ```java
+    Exception in thread "main" jakarta.persistence.PersistenceException: Converting `org.hibernate.exception.DataException` to JPA `PersistenceException` : could not execute statement
+
+    Caused by: com.mysql.jdbc.MysqlDataTruncation: Data truncation: Data too long for column 'employee' at row 1
+    ```
 
 - Difference between positional & named parameters?
 - What is the use of uniqueResult() method?
