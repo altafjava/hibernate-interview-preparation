@@ -279,6 +279,7 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     1. The first technique is widely used and uses a foreign key column in one of the tables.
     2. The second technique uses a rather known solution of having a join table to store the mapping between the first two tables.
     3. The third technique is something new that uses a common primary key in both tables.
+    4. Using @MapsId annotation that uses common primary key in both the tables but different from 3rd approach. It copies primary key from child table and put into parent table as foreign key.
 
     **Using a Foreign Key Association/Join Column:** In this kind of association, a foreign key column is created in the owner entity. For example, we have made `Employee` entity as an owner, then an extra column `accountId` will be created in the `employee` table. This column will store the foreign key for the Account table.
 
@@ -395,7 +396,7 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
       Hibernate: insert into Employee (accountId, firstName, lastName, salary) values (?, ?, ?, ?)
     ```
 
-    **Using a Join Table:** In this approach, Hibernate will create a new table/3rd table that will store the primary key values from both the entities. In this technique `@JoinTable` is used. This annotation is used to define the new table and foreign keys from both of the tables.
+    **Using a link table/Join Table:** In this approach, Hibernate will create a new table/link table that will store the primary key values from both the entities. In this technique `@JoinTable` is used. This annotation is used to define the new table and foreign keys from both of the tables.
 
     ```java
       @Table
@@ -452,7 +453,7 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
 
     then still it will work. It will create column names as `account_aid`(concatenation of child table name, underscore and primary key of its table) & `eid`(primary key of the owner entity).
 
-    If we want bidirectional association then in the child entity we need to use `@OneToOne(mappedBy = "account")`.
+    If we want bidirectional association then in the child entity we can use either `@OneToOne(mappedBy = "account")` or `@JoinTable` with `@OneToOne`. If we want to use `@JoinTable` then we must use `@OneToOne` with or without `mappedBy`. If we only use `@JoinTable` without `@OneToOne` then one extra column `employee` will be created in the account table with empty value.
 
     ```java
       public class Account {
@@ -460,6 +461,7 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
          private String accountNo;
          private String branch;
          @OneToOne(mappedBy = "account")
+         // @JoinTable(name = "employee_account", joinColumns = @JoinColumn(name = "accountId"), inverseJoinColumns = @JoinColumn(name = "employeeId"))
          private Employee employee;
       }
     ```
@@ -524,6 +526,19 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
       }
     ```
 
+    ```java
+      Employee employee = new Employee();
+      employee.setFirstName("David");
+      employee.setLastName("Warner");
+      employee.setSalary(56789);
+      Account account = new Account();
+      account.setAccountNo("ACC123");
+      account.setBranch("Australia");
+      employee.setAccount(account); // this is enough for bidirectional association
+      //	account.setEmployee(employee); // this line is optional
+      session.persist(employee);
+    ```
+
     If we don't write `mappedBy` attribute then `Account` entity will create an extra column `employee_eid` as foreign key and store Employee's primary key.
 
     ```sql
@@ -582,6 +597,164 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     Exception in thread "main" jakarta.persistence.PersistenceException: Converting `org.hibernate.exception.DataException` to JPA `PersistenceException` : could not execute statement
 
     Caused by: com.mysql.jdbc.MysqlDataTruncation: Data truncation: Data too long for column 'employee' at row 1
+    ```
+
+32. @OneToMany
+
+    We can implement one to many association in 2 ways.
+
+    1. Using foreign key column.
+    2. Using link table.
+
+    **Using foreign key column:** In this approach child table(Account) column will refer to the primary key of parent table(Employee).
+
+    ```java
+      @Table
+      @Entity
+      public class Employee implements Serializable {
+         @Id
+         @GeneratedValue(strategy = GenerationType.IDENTITY)
+         private int eid;
+         private String firstName;
+         private String lastName;
+         private double salary;
+         @OneToMany(cascade = CascadeType.PERSIST, mappedBy = "employee")
+         private List<Account> accounts;
+      }
+    ```
+
+    ```java
+      @Entity
+      @Table
+      public class Account implements Serializable {
+         @Id
+         @GeneratedValue(strategy = GenerationType.IDENTITY)
+         private int aid;
+         private String accountNo;
+         private String branch;
+         @ManyToOne
+         @JoinColumn(name = "employeeId")
+      	private Employee employee;
+      }
+    ```
+
+    ```java
+      Employee employee = new Employee();
+      employee.setFirstName("David");
+      employee.setLastName("Warner");
+      employee.setSalary(56789);
+      Account account = new Account();
+      account.setAccountNo("ACC123");
+      account.setBranch("Australia");
+      account.setEmployee(employee);
+      List<Account> accounts = new ArrayList<>();
+      accounts.add(account);
+      account = new Account();
+      account.setAccountNo("BCC567");
+      account.setBranch("New Zealand");
+      accounts.add(account);
+      employee.setAccounts(accounts);
+      account.setEmployee(employee);
+
+      Transaction transaction = session.beginTransaction();
+      session.persist(employee);
+      transaction.commit();
+
+      Employee employee2 = session.get(Employee.class, 1);
+    ```
+
+    ```sql
+      Hibernate: create table Account (aid integer not null auto_increment, accountNo varchar(255), branch varchar(255), employeeId integer, primary key (aid)) engine=MyISAM
+
+      Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+
+      Hibernate: alter table Account add constraint FKbkyxfxqy2qresbaghdbm5xtty foreign key (employeeId) references Employee (eid)
+
+      Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+
+      Hibernate: insert into Account (accountNo, branch, employeeId) values (?, ?, ?)
+
+      Hibernate: insert into Account (accountNo, branch, employeeId) values (?, ?, ?)
+
+      -: SELECT QUERIES :-
+
+      Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=?
+
+      Hibernate: select a1_0.employeeId,a1_0.aid,a1_0.accountNo,a1_0.branch from Account a1_0 where a1_0.employeeId=?
+    ```
+
+    **Using link table/Join Table:** This approach uses the `@JoinTable` annotation to create a link table that stores the foreign keys of both the tables.
+
+    ```java
+      @Entity
+      public class Employee implements Serializable {
+         @Id
+         @GeneratedValue(strategy = GenerationType.IDENTITY)
+         private int eid;
+         private String firstName;
+         private String lastName;
+         private double salary;
+         @OneToMany(cascade = CascadeType.PERSIST)
+         @JoinTable(name = "empacc", joinColumns = @JoinColumn(name = "employeeId"), inverseJoinColumns = @JoinColumn(name = "accountId"))
+         private List<Account> accounts;
+      }
+    ```
+
+    ```java
+      @Entity
+      public class Account implements Serializable {
+         @Id
+         @GeneratedValue(strategy = GenerationType.IDENTITY)
+         private int aid;
+         private String accountNo;
+         private String branch;
+         @ManyToOne
+         @JoinTable(name = "empacc", joinColumns = @JoinColumn(name = "accountId"), inverseJoinColumns = @JoinColumn(name = "employeeId"))
+         private Employee employee;
+      }
+    ```
+
+    ```java
+      Employee employee = new Employee();
+      employee.setFirstName("David");
+      employee.setLastName("Warner");
+      employee.setSalary(56789);
+      Account account = new Account();
+      account.setAccountNo("ACC123");
+      account.setBranch("Australia");
+      List<Account> accounts = new ArrayList<>();
+      accounts.add(account);
+      account = new Account();
+      account.setAccountNo("BCC567");
+      account.setBranch("New Zealand");
+      accounts.add(account);
+      employee.setAccounts(accounts);
+
+      Transaction transaction = session.beginTransaction();
+      session.persist(employee);
+      transaction.commit();
+    ```
+
+    ```sql
+      Hibernate: create table Account (aid integer not null auto_increment, accountNo varchar(255), branch varchar(255), primary key (aid)) engine=MyISAM
+
+      Hibernate: create table empacc (employeeId integer, accountId integer not null, primary key (accountId)) engine=MyISAM
+
+      Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+
+      Hibernate: alter table empacc add constraint FKp2jrrkjsg7pyp97t7xn0480yj foreign key (employeeId) references Employee (eid)
+
+      Hibernate: alter table empacc add constraint FK897b88v7cuvxmstxhqmad0dbe foreign key (accountId) references Account (aid)
+
+      Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+
+      Hibernate: insert into Account (accountNo, branch) values (?, ?)
+
+      Hibernate: insert into Account (accountNo, branch) values (?, ?)
+
+      Hibernate: insert into empacc (employeeId, accountId) values (?, ?)
+
+      Hibernate: insert into empacc (employeeId, accountId) values (?, ?)
     ```
 
 - Difference between positional & named parameters?
