@@ -759,7 +759,7 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
 
 33. @ManyToMany
 
-    A many-to-many association is made between two entities where one entity can be associated with multiple other instances of the other entity. For example, for a subscription service, `Subscription` Entity and `Reader` Entity can be two types of entities. A given subscription can have multiple readers, whereas a reader can subscribe to multiple subscriptions. Many to many association requires a link table that joins two entities. It stores the foreign key of both the tables. This annotation doesn't require `@JoinTable`. `@ManyToMany` annotation is enough to create the link table.
+    A many-to-many association is made between two entities where many entities can be associated with multiple other entities. For example, for a subscription service, `Subscription` Entity and `Reader` Entity can be two types of entities. A given subscription can have multiple readers, whereas a reader can subscribe to multiple subscriptions. Many to many association requires a link table that joins two entities. It stores the foreign key of both the tables. This annotation doesn't require `@JoinTable`. `@ManyToMany` annotation is enough to create the link table.
 
     ```java
     @Entity
@@ -833,6 +833,68 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
       @ManyToMany(mappedBy = "subscriptions")
       List<Reader> readers;
     }
+    ```
+
+34. @ManyToOne
+
+    A many-to-one association is made between two entities where many entities can be associated with one entity. For example, Many students work on a single project. In this association, many side will be the owner and creates a foreign key column in its table.
+
+    ```java
+    @Entity
+    public class Student implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int sid;
+      private String name;
+      @ManyToOne(cascade = CascadeType.PERSIST)
+      @JoinColumn(name = "projectId")
+      private Project project;
+    }
+    ```
+
+    ```java
+    @Entity
+    @Data
+    @ToString(exclude = "students")
+    public class Project implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int pid;
+      private String projectName;
+      @OneToMany(mappedBy = "project")
+      private List<Student> students;
+    }
+    ```
+
+    ```java
+      Transaction transaction = session.beginTransaction();
+      Project project = new Project();
+      project.setProjectName("HMS");
+
+      Student student1 = new Student();
+      student1.setName("Ajay");
+      student1.setProject(project);
+      session.persist(student1);
+
+      Student student2 = new Student();
+      student2.setName("David");
+      student2.setProject(project);
+      session.persist(student2);
+      transaction.commit();
+    ```
+
+    ```sql
+    Hibernate: create table Project (pid integer not null auto_increment, projectName varchar(255), primary key (pid)) engine=MyISAM
+
+    Hibernate: create table Student (sid integer not null auto_increment, name varchar(255), projectId integer, primary key (sid)) engine=MyISAM
+
+    Hibernate: alter table Student add constraint FKb3wn40e1o66egelusymas8fvo foreign key (projectId) references Project (pid)
+
+    Hibernate: insert into Project (projectName) values (?)
+
+    Hibernate: insert into Student (name, projectId) values (?, ?)
+
+    Hibernate: insert into Student (name, projectId) values (?, ?)
     ```
 
 - Difference between positional & named parameters?
