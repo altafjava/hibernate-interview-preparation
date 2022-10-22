@@ -757,6 +757,84 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
       Hibernate: insert into empacc (employeeId, accountId) values (?, ?)
     ```
 
+33. @ManyToMany
+
+    A many-to-many association is made between two entities where one entity can be associated with multiple other instances of the other entity. For example, for a subscription service, `Subscription` Entity and `Reader` Entity can be two types of entities. A given subscription can have multiple readers, whereas a reader can subscribe to multiple subscriptions. Many to many association requires a link table that joins two entities. It stores the foreign key of both the tables. This annotation doesn't require `@JoinTable`. `@ManyToMany` annotation is enough to create the link table.
+
+    ```java
+    @Entity
+    public class Reader implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int rid;
+      private String readerName;
+      private String email;
+      @ManyToMany(cascade = CascadeType.PERSIST)
+      private List<Subscription> subscriptions;
+    }
+    ```
+
+    ```java
+    @Entity
+    public class Subscription implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int sid;
+      private String subscriptionName;
+    }
+    ```
+
+    ```java
+    Subscription subscription1 = new Subscription();
+    subscription1.setSubscriptionName("Youtube");
+    Subscription subscription2 = new Subscription();
+    subscription2.setSubscriptionName("Netflix");
+    List<Subscription> subscriptions = Arrays.asList(subscription1, subscription2);
+    Reader reader = new Reader();
+    reader.setEmail("abc@gmail.com");
+    reader.setReaderName("David");
+    reader.setSubscriptions(subscriptions);
+
+    Transaction transaction = session.beginTransaction();
+    session.persist(reader);
+    transaction.commit();
+    ```
+
+    ```sql
+      Hibernate: create table Reader (rid integer not null auto_increment, email varchar(255), readerName varchar(255), primary key (rid)) engine=MyISAM
+
+      Hibernate: create table Reader_Subscription (Reader_rid integer not null, subscriptions_sid integer not null) engine=MyISAM
+      Hibernate: create table Subscription (sid integer not null auto_increment, subscriptionName varchar(255), primary key (sid)) engine=MyISAM
+
+      Hibernate: alter table Reader_Subscription add constraint FKs066tyf8j84vwtv387hbboow9 foreign key (subscriptions_sid) references Subscription (sid)
+
+      Hibernate: alter table Reader_Subscription add constraint FKld5v1st16r4u53vufetlbodh5 foreign key (Reader_rid) references Reader (rid)
+
+      Hibernate: insert into Reader (email, readerName) values (?, ?)
+
+      Hibernate: insert into Subscription (subscriptionName) values (?)
+
+      Hibernate: insert into Subscription (subscriptionName) values (?)
+
+      Hibernate: insert into Reader_Subscription (Reader_rid, subscriptions_sid) values (?, ?)
+
+      Hibernate: insert into Reader_Subscription (Reader_rid, subscriptions_sid) values (?, ?)
+    ```
+
+    If we want bidirectional association then in the child class we need to use `@ManyToMany` with `mappedBy` attribute. Rest everything will be same. Even generated SQL query will be same.
+
+    ```java
+    @Entity
+    public class Subscription implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int sid;
+      private String subscriptionName;
+      @ManyToMany(mappedBy = "subscriptions")
+      List<Reader> readers;
+    }
+    ```
+
 - Difference between positional & named parameters?
 - What is the use of uniqueResult() method?
 - Aggregate Functions.
