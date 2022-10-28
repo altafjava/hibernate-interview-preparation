@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE hibernate-configuration PUBLIC
+"-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+"http://hibernate.sourceforge.net/hibernate-configuration-3.0.dtd">
+<hibernate-configuration>
+	<session-factory>
+		<property name="hibernate.connection.driver_class">com.mysql.jdbc.Driver</property>
+		<property name="hibernate.connection.url">jdbc:mysql://localhost:3306/test?createDatabaseIfNotExist=true</property>
+		<property name="hibernate.connection.username">root</property>
+		<property name="hibernate.connection.password">root</property>
+		<property name="hibernate.dialect">org.hibernate.dialect.MySQLDialect</property>
+		<property name="show_sql">true</property>
+		<property name="format_sql">false</property>
+		<!-- <property name="hbm2ddl.auto">create-drop</property> -->
+		<property name="hbm2ddl.auto">update</property>
+		<property name="hibernate.current_session_context_class">thread</property>
+		<!-- <mapping class="com.altafjava.onetoone.foreign.entity.Employee" />
+		<mapping class="com.altafjava.onetoone.foreign.entity.Account" /> -->
+		<!-- <mapping class="com.altafjava.onetoone.jointable.entity.Employee" />
+		<mapping class="com.altafjava.onetoone.jointable.entity.Account" /> -->	
+		<!-- <mapping class="com.altafjava.onetoone.pkjoincolumn.entity.Employee" />
+		<mapping class="com.altafjava.onetoone.pkjoincolumn.entity.Account" /> -->
+		<!-- <mapping class="com.altafjava.onetoone.sharedpk.entity.Employee" />
+		<mapping class="com.altafjava.onetoone.sharedpk.entity.Account" /> -->
+		<!-- <mapping class="com.altafjava.onetomany.foreign.entity.Employee" />
+		<mapping class="com.altafjava.onetomany.foreign.entity.Account" /> -->
+		<!-- <mapping class="com.altafjava.onetomany.jointable.entity.Employee" />
+		<mapping class="com.altafjava.onetomany.jointable.entity.Account" /> -->
+		<!-- <mapping class="com.altafjava.manytomany.uni.entity.Reader" />
+		<mapping class="com.altafjava.manytomany.uni.entity.Subscription" /> -->
+		<!-- <mapping class="com.altafjava.manytomany.bi.entity.Reader" />
+		<mapping class="com.altafjava.manytomany.bi.entity.Subscription" /> -->
+		<!-- <mapping class="com.altafjava.manytoone.entity.Student" />
+		<mapping class="com.altafjava.manytoone.entity.Project" /> -->
+		<!-- <mapping class="com.altafjava.datetime.Article" /> -->
+		<!-- <mapping class="com.altafjava.elementcollection.State" /> -->
+		<!-- <mapping class="com.altafjava.lob.Article" /> -->
+		<!-- <mapping class="com.altafjava.orderby.manytomany.Course" />
+		<mapping class="com.altafjava.orderby.manytomany.Student" /> -->
+		<mapping class="com.altafjava.ordercolumn.CreditCard" />
+		<mapping class="com.altafjava.ordercolumn.CardTransaction" />
+	</session-factory>
+</hibernate-configuration>
