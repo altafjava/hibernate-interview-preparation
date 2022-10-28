@@ -39,5 +39,9 @@
 		<mapping class="com.altafjava.orderby.manytomany.Student" /> -->
 		<!-- <mapping class="com.altafjava.ordercolumn.CreditCard" />
 		<mapping class="com.altafjava.ordercolumn.CardTransaction" /> -->
+		<!-- <mapping class="com.altafjava.cascade.remove.Employee" />
+		<mapping class="com.altafjava.cascade.remove.Account" /> -->
+		<mapping class="com.altafjava.cascade.orphanremove.Employee" />
+		<mapping class="com.altafjava.cascade.orphanremove.Account" />
 	</session-factory>
 </hibernate-configuration>

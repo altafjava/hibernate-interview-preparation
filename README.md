@@ -1259,6 +1259,179 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
 
     By default, the column can contain null (unordered) values. The nullability can be overridden by setting the nullable attribute to false. By default, when the schema is generated from the annotations, the column is assumed to be an integer type; however, this can be overridden by supplying a columnDefinition attribute specifying a different column definition string.
 
+40. CascadeType
+
+    When an entity is associated with another entity in any type of association(1:1, 1:N, N:1, N:N) then any change in the owner entity will reflect to the child entity according to the cascade type. If we save an `Employee` then all associated `Accounts` will also be saved into database. If we delete an `Employee` then all `Accounts` associated with that `Employee` also be deleted.
+
+    ```java
+    @OneToMany(cascade = CascadeType.PERSIST, mappedBy = "employee")
+    private List<Account> accounts;
+    ```
+
+    JPA provides various cascade types like CascadeType.PERSIST, CascadeType.MERGE, CascadeType.REFRESH, CascadeType.REMOVE, CascadeType.DETATCH, CascadeType.ALL. There is no default cascade type in JPA. By default no operation is cascaded. The cascade configuration option accepts an array of `CascadeType`. Thus to include more than one cascade type we can use like:
+
+    ```java
+    @OneToMany(cascade={CascadeType.PERSIST, CascadeType.MERGE}, mappedBy = "employee")
+    private List<Account> accounts;
+    ```
+
+41. CascadeType.REMOVE vs Orphan Removal
+
+    `CascadeType.REMOVE` is a database-specific thing. This is a way to delete a child entity or entities whenever the deletion of its parent happens.
+
+    ```java
+    public class Employee implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int eid;
+      private String firstName;
+      private String lastName;
+      private double salary;
+      @OneToMany(cascade = { CascadeType.REMOVE, CascadeType.PERSIST }, mappedBy = "employee")
+      private List<Account> accounts;
+    }
+
+    public class Account implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int aid;
+      private String accountNo;
+      private String branch;
+      @ManyToOne(cascade = CascadeType.PERSIST)
+      @JoinColumn(name = "employeeId")
+      private Employee employee;
+    }
+    ```
+
+    ```java
+    Employee employee = new Employee();
+    employee.setFirstName("David");
+    employee.setLastName("Warner");
+    employee.setSalary(56789);
+    Account account = new Account();
+    account.setAccountNo("ACC123");
+    account.setBranch("Australia");
+    account.setEmployee(employee);
+    List<Account> accounts = new ArrayList<>();
+    accounts.add(account);
+    account = new Account();
+    account.setAccountNo("BCC567");
+    account.setBranch("New Zealand");
+    accounts.add(account);
+    employee.setAccounts(accounts);
+    account.setEmployee(employee);
+
+    Session session = sessionFactory.openSession();
+    Transaction transaction = session.beginTransaction();
+    session.persist(employee);
+    transaction.commit();
+    session.close();
+
+    Session session2 = sessionFactory.openSession();
+    Transaction transaction2 = session2.beginTransaction();
+    Employee employee2 = session2.get(Employee.class, 1);
+    session2.remove(employee2);
+    transaction2.commit();
+    session2.close();
+    ```
+
+    ```sql
+    Hibernate: create table Account (aid integer not null auto_increment, accountNo varchar(255), branch varchar(255), employeeId integer, primary key (aid)) engine=MyISAM
+
+    Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+
+    Hibernate: alter table Account add constraint FKbkyxfxqy2qresbaghdbm5xtty foreign key (employeeId) references Employee (eid)
+
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+    Hibernate: insert into Account (accountNo, branch, employeeId) values (?, ?, ?)
+    Hibernate: insert into Account (accountNo, branch, employeeId) values (?, ?, ?)
+
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=?
+
+    Hibernate: select a1_0.employeeId,a1_0.aid,a1_0.accountNo,a1_0.branch from Account a1_0 where a1_0.employeeId=?
+
+    Hibernate: delete from Account where aid=?
+    Hibernate: delete from Account where aid=?
+    Hibernate: delete from Employee where eid=?
+    ```
+
+    The `orphanRemoval=true` option was introduced in `JPA 2.0`. This marks child entity to be removed when it's no longer referenced from the parent entity. e.g. when we remove the child entity from the corresponding collection of the parent entity.
+
+    ```java
+    public class Employee implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int eid;
+      private String firstName;
+      private String lastName;
+      private double salary;
+      @OneToMany(cascade = CascadeType.PERSIST, mappedBy = "employee", orphanRemoval = true)
+      private List<Account> accounts;
+    }
+
+    public class Account implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int aid;
+      private String accountNo;
+      private String branch;
+      @ManyToOne
+      @JoinColumn(name = "employeeId")
+      private Employee employee;
+    }
+    ```
+
+    ```java
+    Employee employee = new Employee();
+    employee.setFirstName("David");
+    employee.setLastName("Warner");
+    employee.setSalary(56789);
+    Account account = new Account();
+    account.setAccountNo("ACC123");
+    account.setBranch("Australia");
+    account.setEmployee(employee);
+    List<Account> accounts = new ArrayList<>();
+    accounts.add(account);
+    account = new Account();
+    account.setAccountNo("BCC567");
+    account.setBranch("New Zealand");
+    accounts.add(account);
+    employee.setAccounts(accounts);
+    account.setEmployee(employee);
+
+    Session session1 = sessionFactory.openSession();
+    Transaction transaction1 = session1.beginTransaction();
+    session1.persist(employee);
+    transaction1.commit();
+    session1.close();
+
+    Session session2 = sessionFactory.openSession();
+    Transaction transaction2 = session2.beginTransaction();
+    Employee employee2 = session2.get(Employee.class, 1);
+    List<Account> accounts = employee2.getAccounts();
+    accounts.remove(0); // remove an account from List of accounts, not from session
+    transaction2.commit();
+    session2.close();
+    ```
+
+    ```sql
+    Hibernate: create table Account (aid integer not null auto_increment, accountNo varchar(255), branch varchar(255), employeeId integer, primary key (aid)) engine=MyISAM
+
+    Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+
+    Hibernate: alter table Account add constraint FKbkyxfxqy2qresbaghdbm5xtty foreign key (employeeId) references Employee (eid)
+
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+    Hibernate: insert into Account (accountNo, branch, employeeId) values (?, ?, ?)
+    Hibernate: insert into Account (accountNo, branch, employeeId) values (?, ?, ?)
+
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=?
+
+    Hibernate: select a1_0.employeeId,a1_0.aid,a1_0.accountNo,a1_0.branch from Account a1_0 where a1_0.employeeId=?
+
+    Hibernate: delete from Account where aid=?
+    ```
+
 - Difference between positional & named parameters?
 - What is the use of uniqueResult() method?
 - Aggregate Functions.
