@@ -1,4 +1,4 @@
-package com.altafjava.manytomany.uni.entity;
+package com.altafjava.manytomany.uni;
 
 import java.io.Serializable;
 import jakarta.persistence.Entity;

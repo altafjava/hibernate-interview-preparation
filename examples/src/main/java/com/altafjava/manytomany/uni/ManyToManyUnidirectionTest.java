@@ -5,8 +5,6 @@ import java.util.List;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
-import com.altafjava.manytomany.uni.entity.Reader;
-import com.altafjava.manytomany.uni.entity.Subscription;
 import com.altafjava.util.HibernateUtil;
 
 public class ManyToManyUnidirectionTest {

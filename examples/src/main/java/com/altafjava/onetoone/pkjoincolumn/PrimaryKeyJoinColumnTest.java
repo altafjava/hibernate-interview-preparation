@@ -3,8 +3,6 @@ package com.altafjava.onetoone.pkjoincolumn;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
-import com.altafjava.onetoone.pkjoincolumn.entity.Account;
-import com.altafjava.onetoone.pkjoincolumn.entity.Employee;
 import com.altafjava.util.HibernateUtil;
 
 public class PrimaryKeyJoinColumnTest {

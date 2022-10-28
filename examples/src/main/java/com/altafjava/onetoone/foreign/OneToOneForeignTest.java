@@ -3,8 +3,6 @@ package com.altafjava.onetoone.foreign;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
-import com.altafjava.onetoone.foreign.entity.Account;
-import com.altafjava.onetoone.foreign.entity.Employee;
 import com.altafjava.util.HibernateUtil;
 
 public class OneToOneForeignTest {

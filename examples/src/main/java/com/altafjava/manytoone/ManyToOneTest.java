@@ -4,9 +4,6 @@ import java.util.List;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
-import com.altafjava.manytoone.entity.Project;
-import com.altafjava.manytoone.entity.Student;
-import com.altafjava.onetomany.foreign.entity.Employee;
 import com.altafjava.util.HibernateUtil;
 
 public class ManyToOneTest {

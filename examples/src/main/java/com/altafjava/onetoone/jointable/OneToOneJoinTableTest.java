@@ -3,8 +3,6 @@ package com.altafjava.onetoone.jointable;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
-import com.altafjava.onetoone.jointable.entity.Account;
-import com.altafjava.onetoone.jointable.entity.Employee;
 import com.altafjava.util.HibernateUtil;
 
 public class OneToOneJoinTableTest {

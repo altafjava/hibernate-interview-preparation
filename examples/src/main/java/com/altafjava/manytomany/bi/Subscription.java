@@ -1,4 +1,4 @@
-package com.altafjava.manytomany.bi.entity;
+package com.altafjava.manytomany.bi;
 
 import java.io.Serializable;
 import java.util.List;

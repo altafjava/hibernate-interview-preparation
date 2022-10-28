@@ -1,4 +1,4 @@
-package com.altafjava.manytoone.entity;
+package com.altafjava.manytoone;
 
 import java.io.Serializable;
 import java.util.List;

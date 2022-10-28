@@ -3,8 +3,6 @@ package com.altafjava.onetoone.sharedpk;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
-import com.altafjava.onetoone.sharedpk.entity.Account;
-import com.altafjava.onetoone.sharedpk.entity.Employee;
 import com.altafjava.util.HibernateUtil;
 
 public class SharedPrimaryKeyTest {
@@ -33,7 +31,6 @@ public class SharedPrimaryKeyTest {
 		account.setAccountNo("ACC123");
 		account.setBranch("Australia");
 		employee.setAccount(account);
-//		account.setEmployee(employee);
 		return employee;
 	}
 

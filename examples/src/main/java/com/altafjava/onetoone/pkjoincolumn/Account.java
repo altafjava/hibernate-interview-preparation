@@ -1,4 +1,4 @@
-package com.altafjava.onetoone.sharedpk.entity;
+package com.altafjava.onetoone.pkjoincolumn;
 
 import java.io.Serializable;
 import jakarta.persistence.Entity;

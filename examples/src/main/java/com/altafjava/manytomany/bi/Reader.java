@@ -1,13 +1,13 @@
-package com.altafjava.onetoone.foreign.entity;
+package com.altafjava.manytomany.bi;
 
 import java.io.Serializable;
+import java.util.List;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
+import jakarta.persistence.ManyToMany;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -18,15 +18,12 @@ import lombok.ToString;
 @Getter
 @ToString
 @NoArgsConstructor
-public class Employee implements Serializable {
-	private static final long serialVersionUID = -6165525351020151113L;
+public class Reader implements Serializable {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private int eid;
-	private String firstName;
-	private String lastName;
-	private double salary;
-	@OneToOne(cascade = CascadeType.PERSIST)
-	@JoinColumn(name = "accountId")
-	private Account account;
+	private int rid;
+	private String readerName;
+	private String email;
+	@ManyToMany(cascade = CascadeType.PERSIST)
+	private List<Subscription> subscriptions;
 }

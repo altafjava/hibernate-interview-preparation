@@ -5,8 +5,6 @@ import java.util.List;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
-import com.altafjava.onetomany.foreign.entity.Account;
-import com.altafjava.onetomany.foreign.entity.Employee;
 import com.altafjava.util.HibernateUtil;
 
 public class OneToManyForeignTest {

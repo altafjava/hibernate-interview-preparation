@@ -1,4 +1,4 @@
-package com.altafjava.onetomany.jointable.entity;
+package com.altafjava.onetomany.jointable;
 
 import java.io.Serializable;
 import java.util.List;

@@ -1,4 +1,4 @@
-package com.altafjava.onetoone.sharedpk.entity;
+package com.altafjava.manytoone;
 
 import java.io.Serializable;
 import jakarta.persistence.CascadeType;
@@ -6,8 +6,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.MapsId;
-import jakarta.persistence.OneToOne;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -18,15 +18,12 @@ import lombok.ToString;
 @Getter
 @ToString
 @NoArgsConstructor
-public class Employee  implements Serializable{
-	private static final long serialVersionUID = 1057394680091050780L;
+public class Student implements Serializable {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private int eid;
-	private String firstName;
-	private String lastName;
-	private double salary;
-	@OneToOne(cascade = CascadeType.PERSIST)
-	@MapsId
-	private Account account;
+	private int sid;
+	private String name;
+	@ManyToOne(cascade = CascadeType.PERSIST)
+	@JoinColumn(name = "projectId")
+	private Project project;
 }

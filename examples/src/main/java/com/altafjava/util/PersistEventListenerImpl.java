@@ -4,7 +4,7 @@ import org.hibernate.HibernateException;
 import org.hibernate.event.spi.PersistContext;
 import org.hibernate.event.spi.PersistEvent;
 import org.hibernate.event.spi.PersistEventListener;
-import com.altafjava.onetoone.foreign.entity.Employee;
+import com.altafjava.onetoone.foreign.Employee;
 
 public class PersistEventListenerImpl implements PersistEventListener {
 

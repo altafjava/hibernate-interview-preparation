@@ -1,4 +1,4 @@
-package com.altafjava.onetomany.foreign.entity;
+package com.altafjava.onetomany.foreign;
 
 import java.io.Serializable;
 import java.util.List;
