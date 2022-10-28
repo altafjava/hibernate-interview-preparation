@@ -867,20 +867,20 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     ```
 
     ```java
-      Transaction transaction = session.beginTransaction();
-      Project project = new Project();
-      project.setProjectName("HMS");
+    Transaction transaction = session.beginTransaction();
+    Project project = new Project();
+    project.setProjectName("HMS");
 
-      Student student1 = new Student();
-      student1.setName("Ajay");
-      student1.setProject(project);
-      session.persist(student1);
+    Student student1 = new Student();
+    student1.setName("Ajay");
+    student1.setProject(project);
+    session.persist(student1);
 
-      Student student2 = new Student();
-      student2.setName("David");
-      student2.setProject(project);
-      session.persist(student2);
-      transaction.commit();
+    Student student2 = new Student();
+    student2.setName("David");
+    student2.setProject(project);
+    session.persist(student2);
+    transaction.commit();
     ```
 
     ```sql
@@ -896,6 +896,368 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
 
     Hibernate: insert into Student (name, projectId) values (?, ?)
     ```
+
+35. @Temporal
+
+    By default, `java.util.Date` & `java.util.Calendar` will be stored in a column with the `TIMESTAMP` data type, but this default behavior can be overridden with the `@Temporal` annotation. This annotation accepts a single value attribute from the `jakarta.persistence.TemporalType` enum. This offers 3 possible values: `DATE`, `TIME`, and `TIMESTAMP`. These correspond, respectively to `java.sql.Date`, `java.sql.Time` and `java.sql.Timestamp`. The table column is given the appropriate data type at the time of schema generation.
+
+    ```java
+    @Entity
+    public class Article {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int id;
+      private String title;
+      private String content;
+      @Temporal(TemporalType.DATE)
+      private Date date;
+      @Temporal(TemporalType.TIME)
+      private Calendar calendar;
+      private LocalDate updatedDate;
+      private LocalTime updatedTime;
+      private LocalDateTime publishedTimestamp;
+    }
+    ```
+
+    Since Java 8 has introduced new date/time API that can be mapped directly to SQL types. We don't need to use `@Temporal` annotation.
+
+    1. `java.time.LocalDate` can be converted into sql `DATE` type.
+    2. `java.time.LocalTime` can be converted into sql `TIME` type.
+    3. `java.time.LocalDateTime` can be converted into sql `TIMESTAMP` type.
+
+36. @ElementCollection
+
+    This annotation is almost same as `@OneToMany`. It creates a a foreign key in the child side and stores the primary key of the owner entity but the difference is that the child side should be non-mapping class `Embeddable` or `Basic`. The child side should not be an Entity. The elements of child side are completely owned by the containing entities(Owner). They are modified when the owner entity is modified, deleted when the owner entity is deleted, etc. They can't have their own lifecycle.
+
+    ```java
+    @Entity
+    public class State {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int id;
+      private String name;
+      @ElementCollection
+      private List<String> cities;
+    }
+    ```
+
+    ```java
+    State state = new State();
+    state.setName("Telangana");
+    List<String> cities = List.of("Hyderabad", "Secundarabad", "Nalgonda");
+    state.setCities(cities);
+    Transaction transaction = session.beginTransaction();
+    session.persist(state);
+    transaction.commit();
+    ```
+
+    ```sql
+    Hibernate: create table State (id integer not null auto_increment, name varchar(255), primary key (id)) engine=MyISAM
+    Hibernate: create table State_cities (State_id integer not null, cities varchar(255)) engine=MyISAM
+    Hibernate: alter table State_cities add constraint FK8dvxj5lk3fvf14fclwj7ber1p foreign key (State_id) references State (id)
+    Hibernate: insert into State (name) values (?)
+    Hibernate: insert into State_cities (State_id, cities) values (?, ?)
+    Hibernate: insert into State_cities (State_id, cities) values (?, ?)
+    Hibernate: insert into State_cities (State_id, cities) values (?, ?)
+    ```
+
+    ```java
+    @Entity
+    public class Employee {
+      @Id
+      private long id;
+      @ElementCollection
+      private List<Phone> phones;
+    }
+
+    @Embeddable
+    public class Phone {
+      private String type;
+      private String areaCode;
+      private String number;
+    }
+    ```
+
+37. @Lob
+
+    A persistent property or field can be marked for persistence as a database-supported large object type by applying the `@Lob` annotation. The annotation takes no attributes, but the underlying large object type to be used will be inferred from the type of the field or parameter. String- and character-based types will be stored in an appropriate character-based type i.e. `CLOB`. All other objects will be stored in a `BLOB`. This annotation can be used in combination with the `@Basic` or the `@ElementCollection` annotation.
+
+    ```java
+      @Entity
+      @Data
+      public class Article {
+        @Id
+        @GeneratedValue(strategy = GenerationType.IDENTITY)
+        private int id;
+        private String title;
+        @Lob
+        private String content;
+      }
+
+      Transaction transaction = session.beginTransaction();
+      Article article = new Article();
+      article.setTitle("Title");
+      article.setContent("A very long article content");
+      session.persist(article);
+      transaction.commit();
+    ```
+
+    ```sql
+    Hibernate: create table Article (id integer not null auto_increment, content tinytext, title varchar(255), primary key (id)) engine=MyISAM
+
+    Hibernate: insert into Article (content, title) values (?, ?)
+    ```
+
+38. @OrderBy
+
+    This annotation specifies the ordering of the elements of a collection valued association or element collection at the point when the association or collection is retrieved from database.
+
+    ```java
+    @Entity
+    public class Course {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int id;
+      private String courseName;
+      @ManyToMany(cascade = CascadeType.ALL)
+      @OrderBy("name")
+      private List<Student> students;
+    }
+    ```
+
+    When we fetch list of students from database then it uses `SELECT` query with `order by` clause.
+
+    ```java
+    @Entity
+    public class Student {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int id;
+      private String name;
+      @ManyToMany(mappedBy = "students")
+      private List<Course> courses;
+    }
+    ```
+
+    ```java
+    Student student1 = new Student();
+    student1.setName("David");
+    Student student2 = new Student();
+    student2.setName("Zahid");
+    Student student3 = new Student();
+    student3.setName("Ajay");
+    Course course = new Course();
+    course.setCourseName("Java");
+    course.setStudents(List.of(student1, student2, student3));
+    Transaction transaction = session.beginTransaction();
+    session.persist(course);
+    transaction.commit();
+    ```
+
+    ```sql
+    Hibernate: create table Course (id integer not null auto_increment, courseName varchar(255), primary key (id)) engine=MyISAM
+
+    Hibernate: create table Course_Student (courses_id integer not null, students_id integer not null) engine=MyISAM
+
+    Hibernate: create table Student (id integer not null auto_increment, name varchar(255), primary key (id)) engine=MyISAM
+
+    Hibernate: alter table Course_Student add constraint FKhsjbkfb9v2y4f2h02q14ft5pd foreign key (students_id) references Student (id)
+
+    Hibernate: alter table Course_Student add constraint FKs7yq2swrenbdpvkwx01j9cg1s foreign key (courses_id) references Course (id)
+
+    Hibernate: insert into Course (courseName) values (?)
+    Hibernate: insert into Student (name) values (?)
+    Hibernate: insert into Student (name) values (?)
+    Hibernate: insert into Student (name) values (?)
+    Hibernate: insert into Course_Student (courses_id, students_id) values (?, ?)
+    Hibernate: insert into Course_Student (courses_id, students_id) values (?, ?)
+    Hibernate: insert into Course_Student (courses_id, students_id) values (?, ?)
+    ```
+
+    ```java
+    Course course2 = session.get(Course.class, 1);
+    if (course2 == null) {
+      System.out.println(null);
+    } else {
+      System.out.println(course2);
+      List<Student> students = course2.getStudents();
+      for (Student student : students) {
+        System.out.println(student);
+      }
+    }
+    ```
+
+    ```sql
+    Hibernate: select c1_0.id,c1_0.courseName from Course c1_0 where c1_0.id=?
+
+    Hibernate: select s1_0.courses_id,s1_1.id,s1_1.name from Course_Student s1_0 join Student s1_1 on s1_1.id=s1_0.students_id where s1_0.courses_id=? order by s1_1.name
+
+    Course(id=1, courseName=Java, students=[Student(id=3, name=Ajay), Student(id=1, name=David), Student(id=2, name=Zahid)])
+    Student(id=3, name=Ajay)
+    Student(id=1, name=David)
+    Student(id=2, name=Zahid)
+    ```
+
+    If `ASC` or `DESC` is not specified, `ASC` (ascending order) is assumed. If the ordering element is not specified for an entity association, ordering by the primary key of the associated entity is assumed. The property or field name must correspond to that of a persistent property or field of the associated class or embedded class within it. The properties or fields used in the ordering must correspond to columns for which comparison operators are supported. The `@OrderBy` annotation is not used when an `@OrderColumn` is specified.
+
+    The dot (".") notation is used to refer to an attribute within an embedded attribute. The value of each identifier used with the dot notation is the name of the respective embedded field or property.
+
+    ```java
+    @Embeddable
+    public class Zipcode {
+      protected String zip;
+      protected int areaCode;
+    }
+
+    @Embeddable
+    public class Address {
+      protected String street;
+      protected String city;
+      protected String state;
+      @Embedded
+      protected Zipcode zipcode;
+    }
+
+    @Entity
+    public class Person {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int id;
+      private String name;
+      @ElementCollection
+      @OrderBy("zipcode.zip DESC")
+      public Set<Address> addresses;
+    }
+    ```
+
+    ```java
+    Zipcode zipcode1 = new Zipcode();
+    zipcode1.setAreaCode(51);
+    zipcode1.setZip("765478");
+    Address address1 = new Address();
+    address1.setCity("Hyderabad");
+    address1.setState("Telangana");
+    address1.setStreet("Tiger chowk");
+    address1.setZipcode(zipcode1);
+
+    Zipcode zipcode2 = new Zipcode();
+    zipcode2.setAreaCode(24);
+    zipcode2.setZip("123456");
+    Address address2 = new Address();
+    address2.setCity("Bengaluru");
+    address2.setState("Karnataka");
+    address2.setStreet("Howra bridge");
+    address2.setZipcode(zipcode2);
+
+    Person person = new Person();
+    person.setName("Ajay");
+    person.setAddresses(Set.of(address1, address2, address3));
+    Transaction transaction = session.beginTransaction();
+    session.persist(person);
+    transaction.commit();
+    ```
+
+    ```sql
+    Hibernate: create table Person (id integer not null auto_increment, name varchar(255), primary key (id)) engine=MyISAM
+
+    Hibernate: create table Person_addresses (Person_id integer not null, city varchar(255), state varchar(255), street varchar(255), areaCode integer not null, zip varchar(255)) engine=MyISAM
+
+    Hibernate: alter table Person_addresses add constraint FKbs25rlvs45qpe83fidi1x1nj0 foreign key (Person_id) references Person (id)
+
+    Hibernate: insert into Person (name) values (?)
+    Hibernate: insert into Person_addresses (Person_id, city, state, street, areaCode, zip) values (?, ?, ?, ?, ?, ?)
+    Hibernate: insert into Person_addresses (Person_id, city, state, street, areaCode, zip) values (?, ?, ?, ?, ?, ?)
+    ```
+
+    ```java
+    Person person2 = session.get(Person.class, 1);
+    System.out.println(person2);
+    ```
+
+    ```sql
+    Hibernate: select p1_0.id,p1_0.name from Person p1_0 where p1_0.id=?
+
+    Hibernate: select a1_0.Person_id,a1_0.city,a1_0.state,a1_0.street,a1_0.areaCode,a1_0.zip from Person_addresses a1_0 where a1_0.Person_id=? order by a1_0.zip
+
+    Person(id=1, name=Ajay, addresses=[Address(street=Tiger chowk, city=Hyderabad, state=Telangana, zipcode=Zipcode(zip=765478, areaCode=51)), Address(street=Howra bridge, city=Bengaluru, state=Karnataka, zipcode=Zipcode(zip=123456, areaCode=24))])
+    ```
+
+39. @OrderColumn
+
+    This annotation defines an additional column in the child table(many side) which stores the order of the items from zero onwards. For each parent record it starts from zero.
+
+    ```java
+    @Entity
+    public class CreditCard {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int cid;
+      private String name;
+      private String number;
+      @OneToMany(cascade = CascadeType.ALL, mappedBy = "creditCard")
+      @OrderColumn(name = "transactionsOrder")
+      List<CardTransaction> cardTransactions;
+    }
+
+    @Entity
+    public class CardTransaction {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int tid;
+      private double amount;
+      private String date;
+      @ManyToOne
+      @JoinColumn(name = "creditCardId")
+      private CreditCard creditCard;
+    }
+    ```
+
+    ```java
+    CreditCard creditCard = new CreditCard();
+    creditCard.setName("Samar");
+    creditCard.setNumber("1234567890123456");
+    CardTransaction cardTransaction1 = new CardTransaction();
+    cardTransaction1.setAmount(567);
+    cardTransaction1.setDate("2022-11-25");
+    cardTransaction1.setCreditCard(creditCard);
+    CardTransaction cardTransaction2 = new CardTransaction();
+    cardTransaction2.setAmount(984);
+    cardTransaction2.setDate("2021-04-18");
+    cardTransaction2.setCreditCard(creditCard);
+    creditCard.setCardTransactions(List.of(cardTransaction1, cardTransaction2));
+
+    Transaction transaction = session.beginTransaction();
+    session.persist(creditCard);
+    transaction.commit();
+    ```
+
+    ```sql
+    Hibernate: create table CardTransaction (tid integer not null auto_increment, amount float(53) not null, date varchar(255), creditCardId integer, transactionsOrder integer, primary key (tid)) engine=MyISAM
+
+    Hibernate: create table CreditCard (cid integer not null auto_increment, name varchar(255), number varchar(255), primary key (cid)) engine=MyISAM
+
+    Hibernate: alter table CardTransaction add constraint FK4uq1rd0tljxhx811rppbo39t9 foreign key (creditCardId) references CreditCard (cid)
+
+    Hibernate: insert into CreditCard (name, number) values (?, ?)
+
+    Hibernate: insert into CardTransaction (amount, creditCardId, date) values (?, ?, ?)
+
+    Hibernate: insert into CardTransaction (amount, creditCardId, date) values (?, ?, ?)
+
+    Hibernate: update CardTransaction set transactionsOrder=? where tid=?
+
+    Hibernate: update CardTransaction set transactionsOrder=? where tid=?
+    ```
+
+    So it will store `0` in the 1st row & `1` in the 2nd row of the `cardtransaction` table and in the column `transactionsOrder`. And accordingly it will fetch the data.
+
+    ```sql
+    Hibernate: select c1_0.cid,c1_0.name,c1_0.number from CreditCard c1_0 where c1_0.cid=?
+
+    Hibernate: select c1_0.creditCardId,c1_0.transactionsOrder,c1_0.tid,c1_0.amount,c1_0.date from CardTransaction c1_0 where c1_0.creditCardId=?
+    ```
+
+    By default, the column can contain null (unordered) values. The nullability can be overridden by setting the nullable attribute to false. By default, when the schema is generated from the annotations, the column is assumed to be an integer type; however, this can be overridden by supplying a columnDefinition attribute specifying a different column definition string.
 
 - Difference between positional & named parameters?
 - What is the use of uniqueResult() method?
