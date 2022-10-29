@@ -1432,6 +1432,160 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     Hibernate: delete from Account where aid=?
     ```
 
+42. HQL
+
+    HQL is an object-oriented query language, similar to SQL, but instead of operating on tables and columns, HQL works with persistent/entity objects and their properties. HQL is a superset of the JPQL, the Java Persistence Query Language. A JPQL query is a valid HQL query, but not all HQL queries are valid JPQL queries. HQL is a language with its own syntax and grammar. It is written as strings, like "from Product p". HQL queries are translated by Hibernate into conventional SQL queries. Note that Hibernate also provides the APIs that allow us to directly issue SQL queries as well. Hibernator’s query facilities do not allow us to alter the database schema. We can only add/update/delete the data inside tables. HQL is in case-sensitive except the class name and its attributes.
+
+    **HQL UPDATE:** `UPDATE` alters the details of existing objects in the database.
+
+    ```java
+    	Session session = sessionFactory.openSession();
+    	Transaction transaction = session.beginTransaction();
+    	Employee employee = new Employee();
+    	employee.setFirstName("David");
+    	employee.setLastName("Warner");
+    	employee.setSalary(56789);
+    	session.persist(employee);
+    	transaction.commit();
+    	session.close();
+
+    	Session session2 = sessionFactory.openSession();
+    	Transaction transaction2 = session2.beginTransaction();
+    	Query query = session2.createQuery("UPDATE Employee set firstName=:name where eid=:id");
+    	query.setParameter("name", "Finch");
+    	query.setParameter("id", 1);
+    	int noOfRowsAffected = query.executeUpdate();
+    	transaction2.commit();
+    	session2.close();
+    ```
+
+    **HQL DELETE:** `DELETE` removes the details of existing objects from the database.
+
+    ```java
+    Session session = sessionFactory.openSession();
+    Transaction transaction = session.beginTransaction();
+    for (int i = 1; i <= 2; i++) {
+      Employee employee = new Employee();
+      employee.setFirstName("David" + i);
+      employee.setLastName("Warner" + i);
+      employee.setSalary(1000 * i);
+      session.persist(employee);
+    }
+    transaction.commit();
+    session.close();
+
+    Session session2 = sessionFactory.openSession();
+    Transaction transaction2 = session2.beginTransaction();
+    String qry = "deLETE from Employee where eid=:id";	// query is in case-sensitive
+    Query query = session2.createQuery(qry);
+    query.setParameter("id", 1);
+    int noOfRowsAffected = query.executeUpdate();
+    transaction2.commit();
+    session2.close();
+    ```
+
+    ```sql
+    Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+
+    Hibernate: delete from Employee where eid=?
+    ```
+
+    **HQL INSERT:** An HQL `INSERT` can be used to directly insert arbitrary entities as well as insert entities constructed from information obtained from SELECT queries.
+
+    ```java
+    public class Person implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int id;
+      private String firstName;
+      private String lastName;
+    }
+
+    Transaction transaction = session.beginTransaction();
+    String qry = "insert into Person(firstName, lastName)" + "values(:firstName, :lastName)";
+    Query query = session.createQuery(qry);
+    query.setParameter("firstName", "Moin");
+    query.setParameter("lastName", "Ali");
+    int noOfRowsAffected = query.executeUpdate();
+    transaction.commit();
+    System.out.println("noOfRowsAffected: " + noOfRowsAffected);
+    ```
+
+    ```sql
+    Hibernate: create table Person (id integer not null auto_increment, firstName varchar(255), lastName varchar(255), primary key (id)) engine=MyISAM
+
+    Hibernate: insert into Person(firstName,lastName) values (?,?)
+    ```
+
+    _Insert with Select query:_
+
+    ```java
+    Query query=session.createQuery("insert into purged_accounts(id, code, status) "+
+    "select id, code, status from account where accStatus=:status");
+
+    query.setString("accStatus", "PURGED");
+    int rowsCopied=query.executeUpdate();
+    ```
+
+    **HQL SELECT:** An HQL `SELECT` is used to query the database for classes and their properties.
+
+    ```sql
+    [SELECT [DISTINCT] property [, ...]]
+      FROM path [[AS] alias] [, ...] [FETCH ALL PROPERTIES]
+      WHERE logicalExpression
+      GROUP BY property [, ...]
+      HAVING logicalExpression
+      ORDER BY property [ASC | DESC] [, ...]
+    ```
+
+    If `FETCH ALL PROPERTIES` is used then lazy loading semantics will be ignored, and all the immediate properties of the retrieved object(s) will be actively loaded (this does not apply recursively). `SELECT` clause is optional in `HQL` but mandatory for `JPQL`.
+
+    ```java
+    Session session = sessionFactory.openSession();
+    Query query = session.createQuery("from Employee");
+    List<Employee> employees = query.getResultList();
+    for (Employee employee : employees) {
+      System.out.println(employee);
+    }
+    ```
+
+    ```sql
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0
+
+    Employee(eid=1, firstName=David1, lastName=Warner1, salary=1000.0)
+    Employee(eid=2, firstName=David2, lastName=Warner2, salary=2000.0)
+    ```
+
+    ```java
+    Query query = session3.createQuery("select firstName, salary from Employee");
+    // Query query = session.createQuery("select firstName from Employee");
+    List<Object> employeeList = query.getResultList();
+    if (!employeeList.isEmpty()) {
+      if (employeeList.get(0).getClass().isArray()) {
+        for (Object object : employeeList) {
+          for (Object cell : (Object[]) object) {
+            System.out.print(cell + " ");
+          }
+          System.out.println();
+        }
+      } else {
+        for (Object column : employeeList) {
+          System.out.println(column);
+        }
+      }
+    }
+    ```
+
+    ```sql
+    Hibernate: select e1_0.firstName,e1_0.salary from Employee e1_0
+    David1 1000.0
+    David2 2000.0
+    ```
+    
+
 - Difference between positional & named parameters?
 - What is the use of uniqueResult() method?
 - Aggregate Functions.

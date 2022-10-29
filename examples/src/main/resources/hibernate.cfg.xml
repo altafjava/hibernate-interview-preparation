@@ -41,7 +41,11 @@
 		<mapping class="com.altafjava.ordercolumn.CardTransaction" /> -->
 		<!-- <mapping class="com.altafjava.cascade.remove.Employee" />
 		<mapping class="com.altafjava.cascade.remove.Account" /> -->
-		<mapping class="com.altafjava.cascade.orphanremove.Employee" />
-		<mapping class="com.altafjava.cascade.orphanremove.Account" />
+		<!-- <mapping class="com.altafjava.cascade.orphanremove.Employee" />
+		<mapping class="com.altafjava.cascade.orphanremove.Account" /> -->
+		<!-- <mapping class="com.altafjava.hql.update.Employee" /> -->
+		<!-- <mapping class="com.altafjava.hql.delete.Employee" /> -->
+		<!-- <mapping class="com.altafjava.hql.insert.Person" /> -->
+		<mapping class="com.altafjava.hql.select.Employee" />
 	</session-factory>
 </hibernate-configuration>
