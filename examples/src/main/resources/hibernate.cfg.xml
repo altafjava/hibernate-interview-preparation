@@ -46,6 +46,7 @@
 		<!-- <mapping class="com.altafjava.hql.update.Employee" /> -->
 		<!-- <mapping class="com.altafjava.hql.delete.Employee" /> -->
 		<!-- <mapping class="com.altafjava.hql.insert.Person" /> -->
-		<mapping class="com.altafjava.hql.select.Employee" />
+		<!-- <mapping class="com.altafjava.hql.select.Employee" /> -->
+		<mapping class="com.altafjava.hql.namedquery.Employee" />
 	</session-factory>
 </hibernate-configuration>

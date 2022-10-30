@@ -169,7 +169,7 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
 
 23. refresh()
 
-    Sometimes we face a situation when our application database is modified with some external application/agent and thus corresponding hibernate entity in your application actually becomes out of sync with its database representation i.e. having old data. In this case, we can use the session.refresh() method to re-populate the entity with the latest data available in the database.
+    Sometimes we face a situation when our application database is modified with some external application/agent and thus corresponding hibernate entity in our application actually becomes out of sync with its database representation i.e. having old data. In this case, we can use the session.refresh() method to re-populate the entity with the latest data available in the database.
 
 24. delete()/remove()
 
@@ -212,7 +212,7 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
 
 26. @Id
 
-    Each entity bean has to have a primary key, which you annotate on the class with the @Id annotation. We can use this annotation either in a field or in a setter method.
+    Each entity bean has to have a primary key, which we annotate on the class with the @Id annotation. We can use this annotation either in a field or in a setter method.
 
 27. @GeneratedValue
 
@@ -1584,7 +1584,153 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     David1 1000.0
     David2 2000.0
     ```
-    
+
+    **HQL SELECT Clause & Projections:** The SELECT clause provides more control over the result set than the from clause. If we want to obtain the properties of objects in the result set, use the SELECT clause. For instance, we could run a projection query on the products in the database that only returned the names, instead of loading the full object into memory, as follows:
+
+    ```sql
+    select product.name from Product product
+    ```
+
+    The result set for this query will contain a List of java.lang.String objects. Additionally, we can retrieve the prices and the names for each product in the database, like so:
+
+    ```sql
+    select product.name, product.price from Product product
+    ```
+
+    If we are only interested in a few properties, this approach can allow us to reduce network traffic to the database server and save memory on the application's machine.
+
+    **Named Parameters:** Hibernate supports named parameters in its HQL queries. This makes writing queries that accept input from the user easyily and we do not have to defend against SQL injection attacks. We can either pass index or directly the parameter name.
+
+    ```java
+    String hql = "from Product where price > :productPrice";
+    Query query = session.createQuery(hql);
+    // query.setDouble(0, 25.0);
+    query.setDouble("productPrice", 25.0);
+    List results = query.list();
+    ```
+
+    **Sorting the Result:** To sort our HQL query results, we shall need to use the `order by` clause. We can order the results by any property on the objects in the result set either ascending (asc) or descending (desc).
+
+    ```sql
+    from Product p where p.price>25.0 order by p.price desc
+    ```
+
+    If we wanted to sort by more than one property, we would just add the additional properties to the end of the order by clause, separated by commas.
+
+    ```sql
+    from Product p order by p.supplier.name asc, p.price asc
+    ```
+
+    **HQL Association:** Associations allow you to use more than one class in an HQL query, just as SQL allows you to use joins between tables in a relational database. Hibernate supports five different types of joins:
+
+    - CROSS JOIN
+    - INNER JOIN
+    - LEFT OUTER JOIN
+    - RIGHT OUTER JOIN
+    - FULL OUTER JOIN
+
+    If we want to use `CROSS JOIN`, we just need to specify both classes in the from clause.
+
+    ```sql
+    from Product p, Supplier s
+    ```
+
+    For the other joins, use a join clause after the from clause. Specify the type of join, the object property to join on, and an alias for the other class.
+
+    ```sql
+    from Product p left outer join p.supplier as s
+
+    select s.name, p.name, p.price from Product p inner join p.supplier as s
+    ```
+
+    **HQL Aggregate Methods:** HQL supports a range of aggregate methods, similar to SQL. They work the same way in HQL as in SQL, so we do not have to learn any specific Hibernate terminology. The difference is that in HQL aggregate methods apply to the properties of persistent objects.
+
+    ```sql
+    select count(*) from Product product
+    ```
+
+    The aggregate functions available through HQL include the following:
+
+    - avg(property name): The average of a property’s value
+    - count(property name or \*): The number of times a property occurs in the results
+    - max(property name): The maximum value of the property values
+    - min(property name): The minimum value of the property values
+    - sum(property name): The sum total of the property values
+
+43. @NamedQuery
+
+    A named query is a static HQL or SQL query with a fixed query string and defined either using `@NamedQuery` annotation or an XML file. We can refer to a named query by its name, in the runtime, when we need to execute it. Note that Hibernate's `@NamedQuery` annotation extends JPA’s `@NamedQuery` annotation with some additional features. Named queries are compiled when SessionFactory is instantiated (so, essentially, when our application starts up). So the advantage is that all our named queries are validated at that time rather than failing upon execution. The other advantage is that they are easy to maintain complex queries. These can be accessed and used from several places in the application which increases re-usability.
+
+    The disadvantage is that named queries are not customizable at runtime. We can of course define/supply parameters but beyond that what we have defined is what we shall get. We can't even change the sorting. Another disadvantage is that we shall not be able to change the named query within a running application server without reloading the SessionFactory.
+
+    ```java
+    public final class Constant {
+      public static final String GET_EMPLOYEE_BY_ID_NAME = "GET_EMPLOYEE_BY_ID";
+      public static final String GET_EMPLOYEE_BY_ID_QUERY = "from Employee where eid=:id";
+    }
+
+    @Entity
+    @NamedQuery(name = Constant.GET_EMPLOYEE_BY_ID_NAME, query = Constant.GET_EMPLOYEE_BY_ID_QUERY)
+    public class Employee implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int eid;
+      private String firstName;
+      private String lastName;
+      private double salary;
+    }
+    ```
+
+    ```java
+    Session session = sessionFactory.openSession();
+    Transaction transaction = session.beginTransaction();
+    for (int i = 1; i <= 2; i++) {
+      Employee employee = new Employee();
+      employee.setFirstName("David" + i);
+      employee.setLastName("Warner" + i);
+      employee.setSalary(1000 * i);
+      session.persist(employee);
+    }
+    transaction.commit();
+    session.close();
+
+    Session session2 = sessionFactory.openSession();
+    Query query = session2.createNamedQuery(Constant.GET_EMPLOYEE_BY_ID_NAME);
+    query.setParameter("id", 2);
+    Employee employee = (Employee) query.getSingleResult();
+    System.out.println(employee);
+    session2.close();
+    ```
+
+    ```java
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=?
+
+    Employee(eid=2, firstName=David2, lastName=Warner2, salary=2000.0)
+    ```
+
+    **@NamedQueries:** If we have multiple named queries for an entity we can group them using the `@NamedQueries` annotation.
+
+    ```java
+    @NamedQueries({
+        @NamedQuery(name = "QUERY_GET_DEPARTMENT_BY_ID",
+            query = "from DepartmentEntity d where d.id = :id"),
+        @NamedQuery(name = "QUERY_UPDATE_DEPARTMENT_BY_ID",
+            query = "UPDATE DepartmentEntity d SET d.name=:name where d.id = :id")
+    })
+    ```
+
+    **@NamedNativeQuery:** The `@NamedNativeQuery` works very similar to `@NamedQuery` except we need to write the native SQL statements instead of HQL.
+
+    ```java
+    @NamedNativeQueries({
+        @NamedNativeQuery(name = "NATIVE_QUERY_GET_DEPARTMENT_BY_ID",
+            query = "SELECT * FROM TBL_DEPT d WHERE d.id = :id"),
+        @NamedNativeQuery(name = "NATIVE_QUERY_UPDATE_DEPARTMENT_BY_ID",
+            query = "UPDATE TBL_DEPT d SET d.name=:name WHERE d.id = :id")
+    })
+    ```
 
 - Difference between positional & named parameters?
 - What is the use of uniqueResult() method?
