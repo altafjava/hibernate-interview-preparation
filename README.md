@@ -1845,6 +1845,202 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
 
     For more help visit [Wikibooks JPA Criteria API documentation](https://en.wikibooks.org/wiki/Java_Persistence/Criteria#Criteria_API)
 
+45. Stored Procedures
+
+    Stored procedures are like named functions that are stored in the database and used to execute native SQL statements to increase the reusability and take advantage of database-specific syntaxes. Stored procedures can accept input parameters and return output after executing the queries.
+
+    Hibernate provides support for executing the stored procedures and capturing their outputs using `ProcedureCall` & `StoredProcedureQuery` APIs. We can programmatically configure the procedure names and parameters or we can use the `@NamedStoredProcedureQuery` annotation to provide stored procedure details and later refer it to other places in the application.
+
+    Note that, under the hood, Hibernate executes the `JDBC CallableStatement` for fetching the procedure outputs. By default, the CallableStatement is closed upon ending the currently running database transaction, either via calling commit or rollback.
+
+    **ProcedureCall getEmployeeById(?,?,?,?):** It accepts `IN` parameter `eid` and returns the employee details using `OUT` parameters.
+
+    ```sql
+    DELIMITER $$
+    CREATE PROCEDURE getEmployeeById (IN eid int, OUT firstName varchar(100), OUT lastName varchar(100), OUT salary float)
+    BEGIN
+          SELECT e.firstName, e.lastName, e.salary
+          INTO firstName, lastName, salary
+          from employee e
+          where e.eid=eid;
+    END$$
+    ```
+
+    ```java
+    public class Employee implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int eid;
+      private String firstName;
+      private String lastName;
+      private double salary;
+    }
+    ```
+
+    ```java
+    Session session = sessionFactory.openSession();
+    Transaction transaction = session.beginTransaction();
+    for (int i = 1; i <= 2; i++) {
+      Employee employee = new Employee();
+      employee.setFirstName("David" + i);
+      employee.setLastName("Warner" + i);
+      employee.setSalary(1000 * i);
+      session.persist(employee);
+    }
+    transaction.commit();
+    session.close();
+
+    Session session2 = sessionFactory.openSession();
+    ProcedureCall procedureCall = session2.createStoredProcedureCall("getEmployeeById");
+    procedureCall.registerParameter(1, Integer.class, ParameterMode.IN);
+    procedureCall.setParameter(1, 2); // 1st 1 is positional parameter & 2nd 1 is the employee id
+    procedureCall.registerParameter(2, String.class, ParameterMode.OUT);
+    procedureCall.registerParameter(3, String.class, ParameterMode.OUT);
+    procedureCall.registerParameter(4, Double.class, ParameterMode.OUT);
+    ProcedureOutputs procedureOutputs = procedureCall.getOutputs();
+    Object firstName = procedureOutputs.getOutputParameterValue(2);
+    Object lastName = procedureOutputs.getOutputParameterValue(3);
+    Object salary = procedureOutputs.getOutputParameterValue(4);
+    System.out.println(firstName + " " + lastName + " " + salary);
+    ```
+
+    We can use either positional parameter or named parameter but we cannot mix both otherwise we shall encounter en exception:
+
+    ```java
+    Exception in thread "main" java.lang.IllegalArgumentException: Cannot mix named parameter with positional parameter registrations
+    ```
+
+    We must write either complete positional or complete named parameters.
+
+    ```java
+    procedureCall.registerParameter("eid", Integer.class, ParameterMode.IN);
+    procedureCall.setParameter("eid", 2);
+    procedureCall.registerParameter("firstName", String.class, ParameterMode.OUT);
+    procedureCall.registerParameter("lastName", String.class, ParameterMode.OUT);
+    procedureCall.registerParameter("salary", Double.class, ParameterMode.OUT);
+    ProcedureOutputs procedureOutputs = procedureCall.getOutputs();
+    Object firstName = procedureOutputs.getOutputParameterValue("firstName");
+    Object lastName = procedureOutputs.getOutputParameterValue("lastName");
+    Object salary = procedureOutputs.getOutputParameterValue("salary");
+    System.out.println(firstName + " " + lastName + " " + salary);
+    ```
+
+    ```sql
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+
+    Hibernate: {call getEmployeeById(?,?,?,?)}
+
+    David2 Warner2 2000.0
+    ```
+
+    **StoredProcedureQuery getEmployeeDetailsBySalary(?):** We cannot use `OUT` parameters if we have to fetch a lot of information after the execution of stored procedures. It will create problems in code maintenance. So we can only map the `IN` parameters because they are generally limited to 1 or 2 values. And we can get the output information in form of `Object[]`.
+
+    ```sql
+    DELIMITER //
+    CREATE PROCEDURE getEmployeeDetailsBySalary(IN sal FLOAT)
+    BEGIN
+      SELECT *
+      FROM Employee e
+      WHERE e.salary = sal;
+    END //
+    ```
+
+    The `SELECT *` clause selects all four columns from the table so we shall have an Object[] of size 4. This will vary based on the number of columns and the SELECT clause. Also, the size of the List will depend on the number of rows returned after the execution of the stored procedure.
+
+    Here we need to create `StoredProcedureQuery` using `createStoredProcedureQuery()` method. This time we need to execute the procedure with `getResultList()` method.
+
+    ```java
+    Session session = sessionFactory.openSession();
+    Transaction transaction = session.beginTransaction();
+    for (int i = 1; i <= 2; i++) {
+      Employee employee = new Employee();
+      employee.setFirstName("David" + i);
+      employee.setLastName("Warner" + i);
+      employee.setSalary(1200);
+      session.persist(employee);
+    }
+    transaction.commit();
+    session.close();
+
+    Session session2 = sessionFactory.openSession();
+    ProcedureCall procedureCall = session2.createStoredProcedureQuery("getEmployeeDetailsBySalary");
+    procedureCall.registerParameter("salary", Double.class, ParameterMode.IN);
+    procedureCall.setParameter("salary", 1200);
+    List<Object[]> procedureOutputs = procedureCall.getResultList();
+    for (Object[] columns : procedureOutputs) {
+      System.out.println(columns[0] + " " + columns[1] + " " + columns[2] + " " + columns[3]);
+    }
+    session2.close();
+    ```
+
+    ```sql
+    Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+
+    Hibernate: {call getEmployeeDetailsBySalary(?)}
+
+    1 David1 Warner1 1200.0
+    2 David2 Warner2 1200.0
+    ```
+
+    **@NamedStoredProcedureQuery:** This annotation is used to specify a stored procedure query that can be retrieved later by its name. This annotation can be applied to an Entity or mapped superclass. It is important to note that all parameters must be specified in the order in which they occur in the parameter list of the stored procedure in the database. As a great benefit, we can directly map a class to the procedure results.
+
+    ```java
+    public class Constant {
+      public static final String NAMED_STORED_PROCEDURE_QUERY_NAME = "getEmployeeDetailsBySalaryProcedure";
+      public static final String DB_PROCEDURE_NAME = "getEmployeeDetailsBySalary";
+      public static final String COLUMN_NAME = "salary";
+    }
+
+    @Entity
+    @NamedStoredProcedureQuery(name = Constant.NAMED_STORED_PROCEDURE_QUERY_NAME, procedureName = Constant.DB_PROCEDURE_NAME, resultClasses = {
+        Employee.class }, parameters = {
+            @StoredProcedureParameter(name = Constant.COLUMN_NAME, type = Integer.class, mode = ParameterMode.IN) })
+    public class Employee implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int eid;
+      private String firstName;
+      private String lastName;
+      private double salary;
+    }
+    ```
+
+    ```java
+    Session session = sessionFactory.openSession();
+    Transaction transaction = session.beginTransaction();
+    for (int i = 1; i <= 2; i++) {
+      Employee employee = new Employee();
+      employee.setFirstName("David" + i);
+      employee.setLastName("Warner" + i);
+      employee.setSalary(1200);
+      session.persist(employee);
+    }
+    transaction.commit();
+    session.close();
+
+    Session session2 = sessionFactory.openSession();
+    ProcedureCall procedureCall = session2.createNamedStoredProcedureQuery(Constant.NAMED_STORED_PROCEDURE_QUERY_NAME);
+    List list = procedureCall.setParameter(Constant.COLUMN_NAME, 1200).getResultList();
+    for (Object object : list) {
+      System.out.println((Employee) object);
+    }
+    session2.close();
+    ```
+
+    ```sql
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+
+    Hibernate: {call getEmployeeDetailsBySalary(?)}
+
+    Employee(eid=1, firstName=David1, lastName=Warner1, salary=1200.0)
+    Employee(eid=2, firstName=David2, lastName=Warner2, salary=1200.0)
+    ```
+
 - Difference between positional & named parameters?
 - What is the use of uniqueResult() method?
 - Aggregate Functions.
