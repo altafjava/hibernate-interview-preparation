@@ -1732,6 +1732,119 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     })
     ```
 
+44. Criteria Queries
+
+    The criteria query API lets us build nested, structured query expressions in Java, providing a compile-time syntax checking. That is not possible with a query language like HQL or SQL.
+
+    _The Hibernate Criteria API had been deprecated back in Hibernate 5.x and these have been removed in Hibernate 6.0. Usually, all queries using the legacy API can be modeled with the JPA Criteria API that is still supported._
+
+    ```java
+    Session session = sessionFactory.openSession();
+    Transaction transaction = session.beginTransaction();
+    for (int i = 1; i <= 2; i++) {
+      Employee employee = new Employee();
+      employee.setFirstName("David" + i);
+      employee.setLastName("Warner" + i);
+      employee.setSalary(1000 * i);
+      session.persist(employee);
+    }
+    transaction.commit();
+    session.close();
+
+    Session session2 = sessionFactory.openSession();
+    HibernateCriteriaBuilder criteriaBuilder = session2.getCriteriaBuilder();
+    JpaCriteriaQuery<Employee> criteriaQuery = criteriaBuilder.createQuery(Employee.class);
+    JpaRoot<Employee> from = criteriaQuery.from(Employee.class);
+    JpaCriteriaQuery<Employee> select = criteriaQuery.select(from);
+    Query<Employee> query = session2.createQuery(select);
+    List<Employee> employees = query.list();
+    for (Employee employee : employees) {
+      System.out.println(employee);
+    }
+    session2.close();
+    ```
+
+    The above criteria code is equivalent to this HQL:
+
+    ```java
+    Query query = session.createQuery("from Employee");
+    ```
+
+    ```sql
+    Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0
+
+    Employee(eid=1, firstName=David1, lastName=Warner1, salary=1000.0)
+    Employee(eid=2, firstName=David2, lastName=Warner2, salary=2000.0)
+    ```
+
+    **Restriction:** We can fetch partial rows from the tables by appying restriction. We can add restriction in criteria builder.
+
+    - criteriaBuilder.greaterThan()
+    - criteriaBuilder.greaterThanOrEqualTo()
+    - criteriaBuilder.lessThan
+    - criteriaBuilder.lessThanOrEqualTo()
+    - criteriaBuilder.equal()
+    - criteriaBuilder.notEqual()
+    - criteriaBuilder.between()
+    - criteriaBuilder.like()
+    - criteriaBuilder.notLike()
+    - criteriaBuilder.isNull()
+    - criteriaBuilder.isNotNull()
+
+    ```java
+    Session session = sessionFactory.openSession();
+    Transaction transaction = session.beginTransaction();
+    for (int i = 1; i <= 2; i++) {
+      Employee employee = new Employee();
+      employee.setFirstName("David" + i);
+      employee.setLastName("Warner" + i);
+      employee.setSalary(1000 * i);
+      session.persist(employee);
+    }
+    transaction.commit();
+    session.close();
+
+    Session session2 = sessionFactory.openSession();
+    HibernateCriteriaBuilder criteriaBuilder = session2.getCriteriaBuilder();
+    JpaCriteriaQuery<Employee> criteriaQuery = criteriaBuilder.createQuery(Employee.class);
+    JpaRoot<Employee> fromEmployee = criteriaQuery.from(Employee.class);
+    // criteriaQuery.where(criteriaBuilder.greaterThan(fromEmployee.get("eid"), 1));
+    JpaCriteriaQuery<Employee> select = criteriaQuery.select(fromEmployee);
+    select.where(criteriaBuilder.greaterThan(fromEmployee.get("eid"), 1));
+    Query<Employee> query = session2.createQuery(select);
+    List<Employee> employees = query.list();
+    for (Employee employee : employees) {
+      System.out.println(employee);
+    }
+    session2.close();
+    ```
+
+    ```sql
+    Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid>?
+
+    Employee(eid=2, firstName=David2, lastName=Warner2, salary=2000.0)
+    ```
+
+    We can combine these restrictions like:
+
+    ```java
+    JpaPredicate jpaPredicate = criteriaBuilder.and(criteriaBuilder.greaterThan(fromEmployee.get("eid"), 0),
+    			criteriaBuilder.notEqual(fromEmployee.get("firstName"), "David1"));
+    select.where(jpaPredicate);
+    ```
+
+    For more help visit [Wikibooks JPA Criteria API documentation](https://en.wikibooks.org/wiki/Java_Persistence/Criteria#Criteria_API)
+
 - Difference between positional & named parameters?
 - What is the use of uniqueResult() method?
 - Aggregate Functions.
