@@ -52,6 +52,7 @@
 		<!-- <mapping class="com.altafjava.criteria.restriction.Employee" /> -->
 		<!-- <mapping class="com.altafjava.storedprocedure.call.Employee" /> -->
 		<!-- <mapping class="com.altafjava.storedprocedure.query.Employee" /> -->
-		<mapping class="com.altafjava.storedprocedure.named.Employee" />
+		<!-- <mapping class="com.altafjava.storedprocedure.named.Employee" /> -->
+		<mapping class="com.altafjava.cache.firstlevel.Employee" />
 	</session-factory>
 </hibernate-configuration>

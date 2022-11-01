@@ -2041,6 +2041,125 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     Employee(eid=2, firstName=David2, lastName=Warner2, salary=1200.0)
     ```
 
+46. First Level Cache
+
+    Caching is a facility provided by ORM frameworks that helps the users to get fast-running web applications while helping the framework itself to reduce the number of queries made to the database in a single transaction. Hibernate can achieve this by using `First Level Cache`.
+
+    - First level cache in hibernate is enabled by default and we do not need to do anything to get this functionality working. In fact, we can not disable it even forcefully.
+    - First-level cache associated with the Session object and it is available only till the session object is live.
+    - The first-level cache is associated with a specific "session" object and other session objects in the application can not see it.
+    - The scope of cache objects is of the session. Once the session is closed, cached objects are gone forever.
+    - When we query an entity the first time, it is retrieved from the database and stored in the first-level cache associated with hibernate session.
+    - If we query the same entity again with the same session object, it will be loaded from the cache and no `SQL query` will be executed.
+    - The loaded entity can be removed from the session using evict() method. The next loading of this entity will again make a database call if it has been removed using evict() method.
+    - The whole session cache can be removed using clear() method. It will remove all the entities stored in the cache.
+
+    ```java
+    Session session = sessionFactory.openSession();
+    Transaction transaction = session.beginTransaction();
+    Employee employee = new Employee();
+    employee.setFirstName("David");
+    employee.setLastName("Warner");
+    employee.setSalary(1200);
+    session.persist(employee);
+    transaction.commit();
+    session.close();
+
+    Session session2 = sessionFactory.openSession();
+    Employee employee2 = session2.get(Employee.class, 1);
+    System.out.println(employee2);
+    Employee employee3 = session2.getReference(Employee.class, 1); // equivalent to load() method
+    System.out.println(employee3);
+    session2.close();
+    ```
+
+    ```sql
+    Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=?
+
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+    ```
+
+    Here we can clearly see that only one time of `SELECT` query has executed and we have fetched `Employee` two times. 1st time no employee is in the cache. Hence it goes to the database and store into the cache. 2nd time first it checks in the cache whether it is available or not and obviously it is available. So no any `SELECT` query.
+
+    If we fetch employee with different sessions then definately it will fetch from the database.
+
+    ```java
+    Session session = sessionFactory.openSession();
+    Transaction transaction = session.beginTransaction();
+    Employee employee = new Employee();
+    employee.setFirstName("David");
+    employee.setLastName("Warner");
+    employee.setSalary(1200);
+    session.persist(employee);
+    transaction.commit();
+    session.close();
+
+    Session session2 = sessionFactory.openSession();
+    Employee employee2 = session2.get(Employee.class, 1);
+    System.out.println(employee2);
+    session2.close();
+
+    Session session3 = sessionFactory.openSession();
+    Employee employee3 = session3.getReference(Employee.class, 1); // equivalent to load() method bcz load() is deprecated
+    System.out.println(employee3);
+    session3.close();
+    ```
+
+    ```sql
+    Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=?
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=?
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+    ```
+
+    **Remove cached entity:** Though we can not disable the first-level cache in hibernate, we can certainly remove some objects from it when needed. This is done using two methods:
+
+    - evict(): removes a particular object from cache associated with the session
+    - clear(): remove all cached objects associated with the session
+
+    ```java
+    Session session = sessionFactory.openSession();
+    Transaction transaction = session.beginTransaction();
+    Employee employee = new Employee();
+    employee.setFirstName("David");
+    employee.setLastName("Warner");
+    employee.setSalary(1200);
+    session.persist(employee);
+    transaction.commit();
+    session.close();
+
+    Session session2 = sessionFactory.openSession();
+    Employee employee2 = session2.get(Employee.class, 1);
+    System.out.println(employee2);
+    session2.evict(employee2);
+    // session2.clear();
+
+    Employee employee3 = session2.get(Employee.class, 1);
+    System.out.println(employee3);
+    session2.close();
+    ```
+
+    ```sql
+    Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=?
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=?
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+    ```
+
 - Difference between positional & named parameters?
 - What is the use of uniqueResult() method?
 - Aggregate Functions.
