@@ -1621,7 +1621,7 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     from Product p order by p.supplier.name asc, p.price asc
     ```
 
-    **HQL Association:** Associations allow you to use more than one class in an HQL query, just as SQL allows you to use joins between tables in a relational database. Hibernate supports five different types of joins:
+    **HQL Association:** Associations allow us to use more than one class in an HQL query, just as SQL allows us to use joins between tables in a relational database. Hibernate supports five different types of joins:
 
     - CROSS JOIN
     - INNER JOIN
@@ -2160,18 +2160,218 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
     ```
 
-- Difference between positional & named parameters?
-- What is the use of uniqueResult() method?
-- Aggregate Functions.
-- Order By clause.
-- What is named query? How many types of named queries?
-- What is Join and what are the different types?
-- How we can use pagination in Hibernate?
-- What is Id Generators? What are the different ID Generates are used by -Hibernate?
-- What are the JPA annotations for ID Generators?
-- How many types of Mapping in Hibernate?(Basic ORM Mapping, Component Mapping, Inheritance Mapping, Collection Mapping, Association Mapping)
-- What is Component Mapping?
-- What is Inheritance Mapping and its type?(Table per class hierarchy, Table per subclass, Table per concrete class)
-- What is Association Mapping and its type?(1:1, 1:N, N:1, N:N)
-- What is Criteria API?
-- What is Projection?
+47. Second Level Cache
+
+    This is separate from the first-level cache and is available to be used globally in `SessionFactory` scope.
+
+    - The entities stored in the second level cache will be available to all the sessions created using that particular session factory.
+    - Once the SessionFactory is closed, all cache associated with it die and the cache manager also closes down.
+    - If we have two instances of SessionFactory (highly discouraged), we will have two cache managers in our application and while accessing cache stored in a physical store, we might get unpredictable results like cache-miss.
+
+    **How does Second Level Cache Work in Hibernate?**
+
+    - Whenever hibernate session tries to load an entity, the very first place it looks for a cached copy of the entity in first-level cache (associated with a particular hibernate Session).
+    - If a cached copy of the entity is present in first-level cache, it is returned as the result of load()/get() method.
+    - If there is no cached entity in the first-level cache, then the second-level cache is looked up for the cached entity.
+    - If second-level cache has the cached entity, it is returned as the result of load() method. But, before returning the entity, it is stored in first level cache also so that the next invocation to load()/get() method for that entity will return the entity from the first level cache itself, and there will not be need to go to the second level cache again.
+    - If the entity is not found in first level cache and second level cache also, then a database query is executed and the entity is stored in both cache levels, before returning as the response to load() method.
+    - Second-level cache validates itself for modified entities if the modification has been done through hibernate session APIs.
+    - If some user or process makes changes directly in the database, there is no way that the second-level cache update itself until “timeToLiveSeconds” duration has passed for that cache region. In this case, it is a good idea to invalidate the whole cache and let hibernate build its cache once again. We can use sessionFactory.evictEntity() in a loop to invalidate the whole Hibernate second-level cache.
+
+    ```java
+    /**
+    * Evicts all second level cache hibernate entites. This is generally only
+    * needed when an external application modifies the databaase.
+    */
+    public void evict2ndLevelCache() {
+        try {
+            Map<String, ClassMetadata> classesMetadata = sessionFactory.getAllClassMetadata();
+            for (String entityName : classesMetadata.keySet()) {
+                log.info("Evicting Entity from 2nd level cache: " + entityName);
+                sessionFactory.evictEntity(entityName);
+            }
+        } catch (Exception e) {
+            log.error(Level.SEVERE, "SessionController",
+            "evict2ndLevelCache",
+            "Error evicting 2nd level hibernate cache entities: ", e);
+        }
+    }
+    ```
+
+    **Ehcache:** Ehcache is a very popular open-source project available under the Apache 2.0 license. It’s a multi-purpose, highly scalable cache implementation for Java applications.
+
+    **Configuring Ehcache 3 with Hibernate 6:** The required configuration and dependencies to integrate Ehcache with Hibernate depend on the Ehcache version we want to use in our project. Hibernate provides a proprietary integration for the older `Ehcache 2.x` releases. The newer `Ehcache 3.x` releases implement the `JCache` specification. Hibernate provides a generic integration for all caches that implement that specification. Since version 3, Ehcache has been implementing the `JCache` specification. We can integrate it using Hibernate’s `hibernate-jcache` module. It provides a generic integration for all JCache compatible cache implementations.
+
+    ```xml
+    <dependency>
+      <groupId>org.hibernate.orm</groupId>
+      <artifactId>hibernate-jcache</artifactId>
+      <version>6.1.4.Final</version>
+    </dependency>
+    ```
+
+    In addition to the dependency, we also need to enable the `2nd level cache` and we can do that by adding a property `hibernate.cache.use_second_level_cache` in our `hibernate.cfg.xml` file and set it to `true`. Now we need to add the `hibernate.cache.region.factory_class` property to the `hibernate.cfg.xml` file and set it to `jcache`.
+
+    ```xml
+    <property name="hibernate.cache.use_second_level_cache">true</property>
+    <property name="hibernate.cache.region.factory_class">jcache</property>
+    ```
+
+    Hibernate then uses the default `JCache provider` to create the default `CacheManager`. It also uses a default configuration to create the caches. If we want to provide a configuration, which we should, we need to specify the `CacheManager` and a path to the cache configuration in our `hibernate.cfg.xml` file.
+
+    ```xml
+    <property name="hibernate.javax.cache.provider">org.ehcache.jsr107.EhcacheCachingProvider</property>
+    <property name="hibernate.javax.cache.uri">ehcache.xml</property>
+    ```
+
+    ```xml
+    <!-- src/main/resources/ehcache.xml -->
+    <?xml version="1.0" encoding="utf-8"?>
+    <config xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xmlns='http://www.ehcache.org/v3'
+      xsi:schemaLocation="
+            http://www.ehcache.org/v3 http://www.ehcache.org/schema/ehcache-core-3.0.xsd">
+
+      <cache alias="ready-cache">
+        <key-type>java.lang.Integer</key-type>
+        <value-type>com.altafjava.cache.secondlevel.Employee</value-type>
+        <heap unit="entries">100</heap>
+      </cache>
+    </config>
+    ```
+
+    ```java
+    import org.hibernate.annotations.Cache;
+    import org.hibernate.annotations.CacheConcurrencyStrategy;
+    import jakarta.persistence.Cacheable;
+    @Entity
+    @Cacheable
+    @Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
+    public class Employee implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int eid;
+      private String firstName;
+      private String lastName;
+      private double salary;
+    }
+    ```
+
+    ```java
+    // Save Employee
+    SessionFactory sessionFactory = HibernateUtil.getSessionFactory();
+    Session session = sessionFactory.openSession();
+    Transaction transaction = session.beginTransaction();
+    Employee employee = new Employee();
+    employee.setFirstName("David");
+    employee.setLastName("Warner");
+    employee.setSalary(1200);
+    session.persist(employee);
+    transaction.commit();
+    session.close();
+    ```
+
+    ```java
+    // Fetch Employee
+    int employeeId = 1;
+    Employee employee = session.getReference(Employee.class, employeeId); // from DB
+    System.out.println(employee);
+    employee = session.getReference(Employee.class, employeeId); // from 1L cache
+    System.out.println(employee);
+    session.evict(employee);
+    session.close();
+    System.out.println("EntityFetchCount: " + statistics.getEntityFetchCount());
+    System.out.println("2L cache hit count: " + statistics.getSecondLevelCacheHitCount());
+
+    Session session2 = sessionFactory.openSession();
+    employee = session2.getReference(Employee.class, employeeId);// from 2L cache
+    System.out.println(employee);
+    session2.evict(employee);
+    employee = session2.getReference(Employee.class, employeeId); // from 2L cache
+    System.out.println(employee);
+    session2.close();
+    System.out.println("EntityFetchCount: " + statistics.getEntityFetchCount());
+    System.out.println("2L cache hit count: " + statistics.getSecondLevelCacheHitCount());
+
+    Session session3 = sessionFactory.openSession();
+    employee = session3.getReference(Employee.class, employeeId);// from 2L cache
+    System.out.println(employee);
+    session3.clear();
+    employee = session3.getReference(Employee.class, employeeId); // from 2L cache
+    System.out.println(employee);
+    session3.close();
+    System.out.println("EntityFetchCount: " + statistics.getEntityFetchCount());
+    System.out.println("2L cache hit count: " + statistics.getSecondLevelCacheHitCount());
+    ```
+
+    ```sql
+    Hibernate: create table Employee (eid integer not null auto_increment, firstName varchar(255), lastName varchar(255), salary float(53) not null, primary key (eid)) engine=MyISAM
+
+    Hibernate: insert into Employee (firstName, lastName, salary) values (?, ?, ?)
+
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=?
+
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+    EntityFetchCount: 1
+    2L cache hit count: 0
+
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+    EntityFetchCount: 1
+    2L cache hit count: 2
+
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+    EntityFetchCount: 1
+    2L cache hit count: 4
+    ```
+
+    The `@Cacheable` annotation is used to specify whether an entity should be stored in the second-level cache. And the `@Cache` annotation is used to specify the `CacheConcurrencyStrategy(READ_ONLY, READ_WRITE, NONSTRICT_READ_WRITE, TRANSACTIONAL)` of a root entity or a collection.
+
+    **QueryCache:** Hibernate also supports the `QueryCache`, which can store the result of a query. We need to activate it in the `hibernate.cfg.xml` file by setting the parameter `hibernate.cache.use_query_cache` to `true` and defining a `hibernate.cache.region.factory_class`. This is only useful for queries that are run frequently with the same parameters.
+
+    Note that the query cache does not cache the state of the actual entities in the result set. It caches only identifier values and results of the value type. So the query cache should always be used in conjunction with the second-level cache.
+
+    ```xml
+    <property name="hibernate.cache.use_query_cache">true</property>
+    <property name="hibernate.cache.region.factory_class">jcache</property>
+    ```
+
+    ```java
+    SessionFactory sessionFactory = HibernateUtil.getSessionFactory();
+    Session session = sessionFactory.openSession();
+
+    Query<Employee> query = session.createQuery("from Employee where eid=:id");
+    query.setParameter("id", 1);
+    query.setCacheable(true);
+    Employee employee = query.uniqueResult();
+    System.out.println(employee);
+
+    query = session.createQuery("from Employee where eid=:id");
+    query.setParameter("id", 1);
+    query.setCacheable(true);
+    employee = query.uniqueResult();
+    System.out.println(employee);
+
+    query = session.createQuery("from Employee where eid=:id");
+    query.setCacheable(true);
+    query.setParameter("id", 1);
+    employee = query.uniqueResult();
+    System.out.println(employee);
+    ```
+
+    We have executed query 3 times but it fetch the data from database only first time. For the remaining queries it fetch from the cache.
+
+    ```sql
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=? and e1_0.firstName=?
+
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+    Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)
+    ```
+
+    The combination of the query & the parameter values that we have passed used as a key and the result value become the value.
+
+    Key: `[select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=? and e1_0.firstName=?, [1, "David"]]`
+
+    Value: `[Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)]`

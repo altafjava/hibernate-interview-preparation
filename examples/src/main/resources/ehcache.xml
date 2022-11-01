@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xmlns='http://www.ehcache.org/v3'
+	xsi:schemaLocation="
+        http://www.ehcache.org/v3 http://www.ehcache.org/schema/ehcache-core-3.0.xsd">
+
+	<cache alias="ready-cache">
+		<key-type>java.lang.Integer</key-type>
+		<value-type>com.altafjava.cache.secondlevel.Employee</value-type>
+		<heap unit="entries">100</heap>
+	</cache>
+
+</config>
