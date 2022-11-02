@@ -2375,3 +2375,73 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     Key: `[select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=? and e1_0.firstName=?, [1, "David"]]`
 
     Value: `[Employee(eid=1, firstName=David, lastName=Warner, salary=1200.0)]`
+
+48. Connection Pooling(C3P0)
+
+    By default, Hibernate uses `JDBC connections` in order to interact with a database. Creating the database connections is expensive, probably the most expensive operation. For this reason, we are advised to use a connection pool that can store the opened connections ahead of time and close them only when they are not needed.
+
+    Hibernate is designed to use a connection pool by default, an internal implementation. However, Hibernate’s built-in connection pooling isn't designed for `production use`. In production, we must use an external connection pool by using either a database connection provided by JNDI or an external connection pool configured via parameters and classpath. `C3P0` is an example of an external connection pool.
+
+    To configure c3p0 with hibernate we just need to add Hibernates c3p0 connection provider `hibernate-c3p0` as dependency in the pom.xml. The best part is that the whole configuration of C3P0 with hibernate is really very easy. In most cases, if we do not have any other connection provider, just adding any `hibernate-c3p0` dependency in the pom.xml will configure it with defaults. But if we want to configure with our own values then we need to add those configuration in the `hibernate.cfg.xml` file.
+
+    If there is more than one connection pool then to enforce c3p0 poling, we can provide the provider_class property.
+
+    ```xml
+    <property name="hibernate.connection.provider_class">
+      org.hibernate.connection.C3P0ConnectionProvider
+    </property>
+    ```
+
+    **Detailed C3P0 configuration:**
+
+    ```xml
+    <property name="hibernate.c3p0.min_size">10</property>
+    <property name="hibernate.c3p0.max_size">20</property>
+    <property name="hibernate.c3p0.acquire_increment">1</property>
+    <property name="hibernate.c3p0.idle_test_period">3000</property>
+    <property name="hibernate.c3p0.max_statements">50</property>
+    <property name="hibernate.c3p0.timeout">1800</property>
+    <property name="hibernate.c3p0.validate">1800</property>
+    ```
+
+    We can find detailed information about the above configuration switches in [official documentation](https://www.mchange.com/projects/c3p0/#hibernate-specific).
+
+    **Debugging Connection Leaks:** Sometimes applications talk to many other applications and some applications or interactions take a longer time to respond. This can overwhelm the connection pool (when the pool grows to maxPoolSize) and degrade the performance of the whole application. c3p0 can help us debug the pool where connections have been checked out and don’t get checked in.
+
+    ```xml
+    <property name="hibernate.c3p0.unreturnedConnectionTimeout">30</property>
+    <property name="hibernate.c3p0.debugUnreturnedConnectionStackTraces">true</property>
+    ```
+
+    - _unreturnedConnectionTimeout_ helps in fixing leaks. It defines the time (in seconds) to how long a Connection may remain checked out. Checked-out Connections that exceed this limit will be destroyed, and then created a new one in the pool.
+
+    - _debugUnreturnedConnectionStackTraces_ helps in debugging the root cause. when set to true, whenever an unreturned Connection times out, that stack trace will be printed, revealing where a Connection was checked out that was not checked in.
+
+    **Application Logs without C3P0:**
+
+    ```log
+    WARN: HHH000022: c3p0 properties were encountered, but the c3p0 provider class was not found on the classpath; these properties are going to be ignored.
+    Nov 02, 2022 7:27:24 AM org.hibernate.engine.jdbc.connections.internal.DriverManagerConnectionProviderImpl configure
+    WARN: HHH10001002: Using built-in connection pool (not intended for production use)
+    Nov 02, 2022 7:27:24 AM org.hibernate.engine.jdbc.connections.internal.DriverManagerConnectionProviderImpl buildCreator
+    INFO: HHH10001005: Loaded JDBC driver class: com.mysql.jdbc.Driver
+    Nov 02, 2022 7:27:24 AM org.hibernate.engine.jdbc.connections.internal.DriverManagerConnectionProviderImpl buildCreator
+    INFO: HHH10001012: Connecting with JDBC URL [jdbc:mysql://localhost:3306/test?createDatabaseIfNotExist=true]
+    Nov 02, 2022 7:27:24 AM org.hibernate.engine.jdbc.connections.internal.DriverManagerConnectionProviderImpl buildCreator
+    INFO: HHH10001001: Connection properties: {password=****, user=root}
+    Nov 02, 2022 7:27:24 AM org.hibernate.engine.jdbc.connections.internal.DriverManagerConnectionProviderImpl buildCreator
+    INFO: HHH10001003: Autocommit mode: false
+    Nov 02, 2022 7:27:24 AM org.hibernate.engine.jdbc.connections.internal.DriverManagerConnectionProviderImpl$PooledConnections <init>
+    INFO: HHH10001115: Connection pool size: 20 (min=1)
+    ```
+
+    **Application Logs with C3P0:**
+
+    ```log
+    Nov 02, 2022 7:24:45 AM com.mchange.v2.c3p0.C3P0Registry
+    INFO: Initializing c3p0-0.9.5.5 [built 11-December-2019 22:18:33 -0800; debug? true; trace: 10]
+    Nov 02, 2022 7:24:45 AM org.hibernate.c3p0.internal.C3P0ConnectionProvider configure
+    INFO: HHH10001007: JDBC isolation level: <unknown>
+    Nov 02, 2022 7:24:45 AM com.mchange.v2.c3p0.impl.AbstractPoolBackedDataSource
+    INFO: Initializing c3p0 pool... com.mchange.v2.c3p0.PoolBackedDataSource@1f406d1d [ connectionPoolDataSource -> com.mchange.v2.c3p0.WrapperConnectionPoolDataSource@9e568004 [ acquireIncrement -> 1, acquireRetryAttempts -> 30, acquireRetryDelay -> 1000, autoCommitOnClose -> false, automaticTestTable -> null, breakAfterAcquireFailure -> false, checkoutTimeout -> 0, connectionCustomizerClassName -> null, connectionTesterClassName -> com.mchange.v2.c3p0.impl.DefaultConnectionTester, contextClassLoaderSource -> caller, debugUnreturnedConnectionStackTraces -> true, factoryClassLocation -> null, forceIgnoreUnresolvedTransactions -> false, forceSynchronousCheckins -> false, identityToken -> 1hgeu41asezvbiq15i1mzd|16943e88, idleConnectionTestPeriod -> 3000, initialPoolSize -> 10, maxAdministrativeTaskTime -> 0, maxConnectionAge -> 0, maxIdleTime -> 1800, maxIdleTimeExcessConnections -> 0, maxPoolSize -> 20, maxStatements -> 50, maxStatementsPerConnection -> 0, minPoolSize -> 10, nestedDataSource -> com.mchange.v2.c3p0.DriverManagerDataSource@acbcee36 [ description -> null, driverClass -> null, factoryClassLocation -> null, forceUseNamedDriverClass -> false, identityToken -> 1hgeu41asezvbiq15i1mzd|5305c37d, jdbcUrl -> jdbc:mysql://localhost:3306/test?createDatabaseIfNotExist=true, properties -> {password=******, user=******} ], preferredTestQuery -> null, privilegeSpawnedThreads -> false, propertyCycle -> 0, statementCacheNumDeferredCloseThreads -> 0, testConnectionOnCheckin -> false, testConnectionOnCheckout -> false, unreturnedConnectionTimeout -> 30, usesTraditionalReflectiveProxies -> false; userOverrides: {} ], dataSourceName -> null, extensions -> {}, factoryClassLocation -> null, identityToken -> 1hgeu41asezvbiq15i1mzd|3e521715, numHelperThreads -> 3 ]
+    ```
