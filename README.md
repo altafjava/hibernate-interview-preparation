@@ -2445,3 +2445,236 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     Nov 02, 2022 7:24:45 AM com.mchange.v2.c3p0.impl.AbstractPoolBackedDataSource
     INFO: Initializing c3p0 pool... com.mchange.v2.c3p0.PoolBackedDataSource@1f406d1d [ connectionPoolDataSource -> com.mchange.v2.c3p0.WrapperConnectionPoolDataSource@9e568004 [ acquireIncrement -> 1, acquireRetryAttempts -> 30, acquireRetryDelay -> 1000, autoCommitOnClose -> false, automaticTestTable -> null, breakAfterAcquireFailure -> false, checkoutTimeout -> 0, connectionCustomizerClassName -> null, connectionTesterClassName -> com.mchange.v2.c3p0.impl.DefaultConnectionTester, contextClassLoaderSource -> caller, debugUnreturnedConnectionStackTraces -> true, factoryClassLocation -> null, forceIgnoreUnresolvedTransactions -> false, forceSynchronousCheckins -> false, identityToken -> 1hgeu41asezvbiq15i1mzd|16943e88, idleConnectionTestPeriod -> 3000, initialPoolSize -> 10, maxAdministrativeTaskTime -> 0, maxConnectionAge -> 0, maxIdleTime -> 1800, maxIdleTimeExcessConnections -> 0, maxPoolSize -> 20, maxStatements -> 50, maxStatementsPerConnection -> 0, minPoolSize -> 10, nestedDataSource -> com.mchange.v2.c3p0.DriverManagerDataSource@acbcee36 [ description -> null, driverClass -> null, factoryClassLocation -> null, forceUseNamedDriverClass -> false, identityToken -> 1hgeu41asezvbiq15i1mzd|5305c37d, jdbcUrl -> jdbc:mysql://localhost:3306/test?createDatabaseIfNotExist=true, properties -> {password=******, user=******} ], preferredTestQuery -> null, privilegeSpawnedThreads -> false, propertyCycle -> 0, statementCacheNumDeferredCloseThreads -> 0, testConnectionOnCheckin -> false, testConnectionOnCheckout -> false, unreturnedConnectionTimeout -> 30, usesTraditionalReflectiveProxies -> false; userOverrides: {} ], dataSourceName -> null, extensions -> {}, factoryClassLocation -> null, identityToken -> 1hgeu41asezvbiq15i1mzd|3e521715, numHelperThreads -> 3 ]
     ```
+
+49. Pagination
+
+    To paginate the query results using `HQL APIs` & `ScrollableResults` interface in Hibernate. Pagination helps in cases when the number of rows in query output is very high and fetching all records will badly affect the performance of the application.
+
+    The HQL methods `Query#setMaxResults()` & `Query#setFirstResult()` are used to limit the number of results and control pagination. It is the most common technique to implement pagination in Hibernate. Lets save the 10 records of `Employee` and fetch few of the records by using the above methods.
+
+    ```java
+    for (int i = 1; i <= 10; i++) {
+      Employee employee = new Employee();
+      employee.setFirstName("David" + i);
+      employee.setLastName("Warner" + i);
+      employee.setSalary(1200 * i);
+      session.persist(employee);
+    }
+    ```
+
+    ```java
+    Query<Employee> query = session.createQuery("from Employee");
+    query.setFirstResult(2);// start index/(offset+1)
+    query.setMaxResults(5);// no of rows/records
+    List<Employee> employees = query.list();
+    for (Employee employee : employees) {
+      System.out.println(employee);
+    }
+    ```
+
+    ```sql
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 limit ?,?
+
+    Employee(eid=3, firstName=David3, lastName=Warner3, salary=3600.0)
+    Employee(eid=4, firstName=David4, lastName=Warner4, salary=4800.0)
+    Employee(eid=5, firstName=David5, lastName=Warner5, salary=6000.0)
+    Employee(eid=6, firstName=David6, lastName=Warner6, salary=7200.0)
+    Employee(eid=7, firstName=David7, lastName=Warner7, salary=8400.0)
+    ```
+
+    As we can see in the generated sql, Hibernate uses the `OFFSET` &`LIMIT` clause.
+
+    > MySQL limit syntax: offset is optional
+
+    ```sql
+    SELECT
+      select_list
+    FROM
+        table_name
+    LIMIT [offset,] row_count;
+    ```
+
+    - OFFSET: It specifies how many records shall be skipped before the first record gets returned
+    - LIMIT: It defines the maximum number of records returned by the query.
+
+    Lets say we use `limit 2, 5`. Here 2 is the offset & 5 is the limit. It means it will skip the 1st & 2nd row and fetch from the 3nd row till 7th row(2+5=7). Means max it will fetch 5 rows/records.
+
+    > Note: Stored procedure queries cannot be paged with setFirstResult()/setMaxResults().
+
+    **Example:** To demonstrate the pagination functionality, we have created a class to represent the paged result that can be returned to the client.
+
+    ```java
+    public class PaginationResult<E> {
+      private int currentPageNumber;
+      private int lastPageNumber;
+      private int pageSize;
+      private long totalRecords;
+      private List<E> records;
+    }
+    ```
+
+    Typically, in pagination, the application gets the requested `pageNumber` along with the `numberOfRecords/pageSize`. These two act as the request parameters. We have written a function that accepts the above two arguments and returns an instance of `PaginationResult` that has all the information needed to build a pagination UI on the client side.
+
+    ```java
+    public class PaginationService {
+      public PaginationResult<Employee> paginateUsingHql(int pageNumber, int pageSize) {
+        Long totalRecords = 0L;
+        List<Employee> employees = Collections.emptyList();
+        SessionFactory sessionFactory = HibernateUtil.getSessionFactory();
+        try (Session session = sessionFactory.openSession()) {
+          TypedQuery countQuery = session.createQuery("select count(emp.eid) from Employee emp");
+          totalRecords = (Long) countQuery.getSingleResult();
+          System.out.println("totalRecords:" + totalRecords);
+        }
+
+        int lastPage = 0;
+        if (totalRecords % pageSize == 0) {
+          lastPage = (int) (totalRecords / pageSize);
+        } else {
+          lastPage = (int) ((totalRecords / pageSize) + 1);
+        }
+        int offset = pageSize * (pageNumber - 1);
+        System.out.println("currentPage:" + pageNumber + "  lastPage:" + lastPage + "  pageSize:" + pageSize + "  offset:" + offset);
+
+        try (Session session = sessionFactory.openSession()) {
+          TypedQuery<Employee> fromQuery = session.createQuery("from Employee");
+          fromQuery.setFirstResult(offset);
+          fromQuery.setMaxResults(pageSize);
+          employees = fromQuery.getResultList();
+        }
+        PaginationResult<Employee> paginationResult = new PaginationResult<>();
+        paginationResult.setCurrentPageNumber(pageNumber);
+        paginationResult.setLastPageNumber(lastPage);
+        paginationResult.setPageSize(pageSize);
+        paginationResult.setTotalRecords(totalRecords);
+        paginationResult.setRecords(employees);
+        return paginationResult;
+      }
+    }
+    ```
+
+    To test if the pagination is working as expected, we have inserted total of 24 records in the database. And we can test by calling `paginateUsingHql()` method of `PaginationService`.
+
+    ```java
+    // OffsetLimitTest.saveEmployees(24);
+    PaginationService paginationService = new PaginationService();
+    PaginationResult<Employee> paginationResult = paginationService.paginateUsingHql(2, 7);
+    List<Employee> employees = paginationResult.getRecords();
+    for (Employee employee : employees) {
+      System.out.println(employee);
+    }
+    ```
+
+    ```sql
+    Hibernate: select count(e1_0.eid) from Employee e1_0
+    totalRecords:24
+    currentPage:2  lastPage:4  pageSize:7  offset:7
+
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 limit ?,?
+
+    Employee(eid=8, firstName=David8, lastName=Warner8, salary=9600.0)
+    Employee(eid=9, firstName=David9, lastName=Warner9, salary=10800.0)
+    Employee(eid=10, firstName=David10, lastName=Warner10, salary=12000.0)
+    Employee(eid=11, firstName=David11, lastName=Warner11, salary=13200.0)
+    Employee(eid=12, firstName=David12, lastName=Warner12, salary=14400.0)
+    Employee(eid=13, firstName=David13, lastName=Warner13, salary=15600.0)
+    Employee(eid=14, firstName=David14, lastName=Warner14, salary=16800.0)
+    ```
+
+    **Pagination using ScrollableResults:** The org.hibernate.Query interface offers Query#scroll() for reading query results incrementally while maintaining an open JDBC ResultSet mapped to a server-side cursor. The scroll() method returns a ScrollableResults which wraps an underlying JDBC scrollable ResultSet. We can use `ScrollableResults#scroll()` to set the starting position of the cursor and then `ScrollableResults#next()` to get sequentially iterate over the number of records on the page.
+
+    ```java
+    import org.hibernate.query.Query;
+
+    Query<Employee> fromQuery = session.createQuery("from Employee", Employee.class);
+    try (ScrollableResults<Employee> scrollableResults = fromQuery.scroll()) {
+      while (scrollableResults.next() && scrollableResults.getRowNumber() >= 0 && scrollableResults.getRowNumber() < 10) {
+        Employee employee = scrollableResults.get();
+        System.out.println(employee);
+      }
+    }
+    ```
+
+    This will print the employee information from `eid` 1 to 10. One good thing about this approach(ScrollableResults) is that we do not need to execute an extra query(`select count(e.eid) from Employee e`) to get the `totalRecords` count. Just move the cursor to the last record in the result set, and get the current row number.
+
+    ```java
+    resultScroll.last();
+    totalRecords = resultScroll.getRowNumber() + 1;  // JDBC ResultSet Cursor starts with 0
+    ```
+
+    **Example:** Similar to the previous pagination example, let’s build a method that uses the `ScrollableResults` to paginate based on given method arguments `pageNumber` and `pageSize`. In the end, it will return an instance of `PaginationResult` with all the employee information populated into it.
+
+    ```java
+    public PaginationResult<Employee> paginateUsingScrollableResults(int pageNumber, int pageSize) {
+      List<Employee> employees = new ArrayList<>();
+      int lastPage = 0, totalRecords = 0;
+      SessionFactory sessionFactory = HibernateUtil.getSessionFactory();
+      try (Session session = sessionFactory.openSession()) {
+        Query<Employee> fromQuery = session.createQuery("from Employee", Employee.class);
+        ScrollableResults<Employee> scrollableResults = fromQuery.scroll();
+        boolean hasRecords = scrollableResults.first();
+        if (hasRecords) {
+          int startIndex = pageSize * (pageNumber - 1);
+          int endPosition = pageSize * pageNumber;
+          hasRecords = scrollableResults.scroll(startIndex);
+          if (hasRecords) {
+            do {
+              Employee employee = scrollableResults.get();
+              employees.add(employee);
+            } while (scrollableResults.next() && scrollableResults.getRowNumber() >= startIndex
+                && scrollableResults.getRowNumber() < endPosition);
+          }
+        }
+      }
+      PaginationResult<Employee> paginationResult = new PaginationResult<>();
+      paginationResult.setCurrentPageNumber(pageNumber);
+      paginationResult.setLastPageNumber(lastPage);
+      paginationResult.setPageSize(pageSize);
+      paginationResult.setTotalRecords(totalRecords);
+      paginationResult.setRecords(employees);
+      return paginationResult;
+    }
+    ```
+
+    ```java
+    // OffsetLimitTest.saveEmployees(24);
+    PaginationService paginationService = new PaginationService();
+    PaginationResult<Employee> paginationResult = paginationService.paginateUsingScrollableResults(2, 7);
+    List<Employee> employees = paginationResult.getRecords();
+    for (Employee employee : employees) {
+      System.out.println(employee);
+    }
+    ```
+
+    ```sql
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0
+
+    Employee(eid=8, firstName=David8, lastName=Warner8, salary=9600.0)
+    Employee(eid=9, firstName=David9, lastName=Warner9, salary=10800.0)
+    Employee(eid=10, firstName=David10, lastName=Warner10, salary=12000.0)
+    Employee(eid=11, firstName=David11, lastName=Warner11, salary=13200.0)
+    Employee(eid=12, firstName=David12, lastName=Warner12, salary=14400.0)
+    Employee(eid=13, firstName=David13, lastName=Warner13, salary=15600.0)
+    Employee(eid=14, firstName=David14, lastName=Warner14, salary=16800.0)
+    ```
+
+50. Hibernate Interceptors
+
+    Interceptors, as the name suggests, provide callbacks to certain events that occur inside Hibernate. It helps in implementing AOP style cross-cutting concerns and the extension of Hibernate functionality. To create a new Interceptor in Hibernate, we need to implement the `org.hibernate.Interceptor` interface. This interface provides methods to inspect and/or manipulate properties of a persistent object before it is saved, updated, deleted or loaded.
+
+    Before Hibernate 6.0, extending the EmptyInterceptor was a preferred way to override only the necessary methods because to implement Interceptor, we have to implement `all 14 methods` in the interface. This was obviously not suitable until we had a very strong reason to do it. Since Hibernate 6.0, EmptyInterceptor has been deprecated. And the methods inside Interceptor interface have been made default methods, so we only need to override only the necessary method now. Interceptor interface provides the following important methods for intercepting specific events:
+
+    - afterTransactionBegin(): Called when a Hibernate transaction is begun.
+    - afterTransactionCompletion(): Called after a transaction is committed or rolled back.
+    - beforeTransactionCompletion(): Called before a transaction is committed (but not before rollback).
+    - onCollectionRecreate(): Called before a collection is (re)created.
+    - onCollectionRemove(): Called before a collection is deleted.
+    - onCollectionUpdate(): Called before a collection is updated.
+    - onDelete(): Called before an object is deleted.
+    - onFlushDirty(): Called when an object is detected to be dirty, during a flush.
+    - onLoad(): Called just before an object is initialized.
+    - onSave(): Called before an object is saved.
+    - postFlush(): Called after a flush.
+    - preFlush(): Called before a flush.
+
+    A very good article has been written in [this blog](https://javaaltaf.blogspot.com/2019/01/change-table-name-of-entity-at-runtime.html) regarding realtime usecase of `Hibernate Interceptor`. This was written in `2019`. It means some of the classes & methods might have been deprecated but the concept is very useful. Please visit at least once for clear understanding. [How to change the table name of an Hibernate entity at run-time? ](https://javaaltaf.blogspot.com/2019/01/change-table-name-of-entity-at-runtime.html)
