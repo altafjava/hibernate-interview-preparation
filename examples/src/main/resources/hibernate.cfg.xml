@@ -73,6 +73,8 @@
 		<!-- <mapping class="com.altafjava.storedprocedure.named.Employee" /> -->
 		<!-- <mapping class="com.altafjava.cache.firstlevel.Employee" /> -->
 		<!-- <mapping class="com.altafjava.cache.secondlevel.Employee" /> -->
-		<mapping class="com.altafjava.cache.querylevel.Employee" />
+		<!-- <mapping class="com.altafjava.cache.querylevel.Employee" /> -->
+		<!-- <mapping class="com.altafjava.pagination.offsetlimit.Employee" /> -->
+		<mapping class="com.altafjava.pagination.scrollable.Employee" />
 	</session-factory>
 </hibernate-configuration>

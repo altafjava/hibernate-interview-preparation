@@ -15,8 +15,8 @@ public class FirstLevelCacheTest {
 		employee.setFirstName("David");
 		employee.setLastName("Warner");
 		employee.setSalary(1200);
-//		session.persist(employee);
-//		transaction.commit();
+		session.persist(employee);
+		transaction.commit();
 		session.close();
 
 		Session session2 = sessionFactory.openSession();
