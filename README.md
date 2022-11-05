@@ -2678,3 +2678,360 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     - preFlush(): Called before a flush.
 
     A very good article has been written in [this blog](https://javaaltaf.blogspot.com/2019/01/change-table-name-of-entity-at-runtime.html) regarding realtime usecase of `Hibernate Interceptor`. This was written in `2019`. It means some of the classes & methods might have been deprecated but the concept is very useful. Please visit at least once for clear understanding. [How to change the table name of an Hibernate entity at run-time? ](https://javaaltaf.blogspot.com/2019/01/change-table-name-of-entity-at-runtime.html)
+
+51. Batch Processing
+
+    Hibernate leverages the JDBC's batching capability that batches together multiple SQL statements as a single PreparedStatement. By default, batch processing is disabled in Hibernate. So if we persist 10 new entities then 10 separate SQL `INSERT` statements will be executed. The same is true for a `million records`. Any application’s performance will keep degrading in proportion to the number of rows increases and we might face the `OutOfMemoryError`. To enable the batch processing, we need to set the `hibernate.jdbc.batch_size` property to a number bigger than `0`.
+
+    **Insert without batch enabled:** Lets say we want to insert 10 records in the database then first, hibernate queues all the statements in the current persistent context. When the transaction was committed, all the statements were executed at the end of the method in separate query with batch-size 0.
+
+    > Note: Hibernate disables insert batching at the JDBC level transparently if we use an `IDENTITY` identifier generator in the entity class. So we can either use sequence, table generator or manually we can put the ids.
+
+    ```java
+    @Entity
+    public class Employee implements Serializable {
+      @Id
+      private int eid;
+      private String firstName;
+      private String lastName;
+      private double salary;
+    }
+
+    ```
+
+    ```java
+    Transaction transaction = session.beginTransaction();
+    for (int i = 1; i <= 10; i++) {
+      System.out.println("Statement Queued : " + i);
+      Employee employee = new Employee();
+      employee.setEid(i);
+      employee.setFirstName("David" + i);
+      employee.setLastName("Warner" + i);
+      employee.setSalary(1000 * i);
+      session.persist(employee);
+    }
+    transaction.commit();
+    ```
+
+    ```log
+    Statement Queued : 1
+    Statement Queued : 2
+    Statement Queued : 3
+    ...
+    ...
+    Statement Queued : 9
+    Statement Queued : 10
+
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Name:, Connection:3, Time:2, Success:True
+    Type:Prepared, Batch:False, QuerySize:1, BatchSize:0
+    Query:["insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)"]
+    Params:[(David1,Warner1,1000.0,1)]
+
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Name:, Connection:3, Time:1, Success:True
+    Type:Prepared, Batch:False, QuerySize:1, BatchSize:0
+    Query:["insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)"]
+    Params:[(David2,Warner2,2000.0,2)]
+    ...
+    ...
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Name:, Connection:3, Time:0, Success:True
+    Type:Prepared, Batch:False, QuerySize:1, BatchSize:0
+    Query:["insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)"]
+    Params:[(David10,Warner10,10000.0,10)]
+    ```
+
+    Here, we can clearly see that `Batch is false, QuerySize is 1 & BatchSize is 0`. How did we printed this information?
+
+    **Log Batch Statements:** As we know, hibernate relies on the low-level JDBC APIs to create batches of queued statements so to enable logging these statements we must intercept the calls at the `datasource` level. The [datasource-proxy](https://mvnrepository.com/artifact/net.ttddyy/datasource-proxy) is one such library that helps in creating a proxy around the original datasource used by the application.`Never use this dependency in Production. This might be vulnerable for your database`. Just to check whether batch is enabled or not, we are using in local.
+
+    ```xml
+    <dependency>
+      <groupId>net.ttddyy</groupId>
+      <artifactId>datasource-proxy</artifactId>
+      <version>1.8</version>
+    </dependency>
+    ```
+
+    Now create the `ProxyDataSource` manually and inject into `StandardServiceRegistry` in HibernateUtil.
+
+    ```java
+    MysqlDataSource mysqlDataSource = new MysqlDataSource();
+    mysqlDataSource.setUrl("jdbc:mysql://localhost:3306/test?createDatabaseIfNotExist=true");
+    mysqlDataSource.setUser("root");
+    mysqlDataSource.setPassword("root");
+
+    ProxyDataSource proxyDataSource = ProxyDataSourceBuilder.create(mysqlDataSource).asJson().countQuery().logQueryToSysOut()
+        .multiline().build();
+
+    Map<String, Object> dataSourceMap = new LinkedHashMap<>();
+    dataSourceMap.put(Environment.DATASOURCE, getDataSource());
+    StandardServiceRegistry standardServiceRegistry = new StandardServiceRegistryBuilder().configure().applySettings(dataSourceMap).build();
+    Metadata metadata = new MetadataSources().getMetadataBuilder(standardServiceRegistry).build();
+    SessionFactory sessionFactory = metadata.getSessionFactoryBuilder().build();
+    ```
+
+    **Enable Batch Processing:** To enable the batch processing, we need to set the hibernate.jdbc.batch_size property to a number bigger than 0.
+
+    ```xml
+    <property name="hibernate.jdbc.batch_size">5</property>
+    ```
+
+    If we’re using Spring Boot, we can define it as an application property:
+
+    ```
+    spring.jpa.properties.hibernate.jdbc.batch_size = 5
+    ```
+
+    To configure Session specific batch size, we can use `setJdbcBatchSize()` method.
+
+    ```java
+    //Using Session
+    session.setJdbcBatchSize(50);
+
+    //Using EntityManager
+    entityManager.unwrap(Session.class).setJdbcBatchSize(50);
+    ```
+
+    Now we have enabled the batch processing. Lets see the log for the same above program.
+
+    ```log
+    Statement Queued : 1
+    Statement Queued : 2
+    Statement Queued : 3
+    Statement Queued : 4
+    Statement Queued : 5
+    Statement Queued : 6
+    Statement Queued : 7
+    Statement Queued : 8
+    Statement Queued : 9
+    Statement Queued : 10
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+
+    Name:, Connection:3, Time:3, Success:True
+    Type:Prepared, Batch:True, QuerySize:1, BatchSize:5
+    Query:["insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)"]
+    Params:[(David1,Warner1,1000.0,1),(David2,Warner2,2000.0,2),(David3,Warner3,3000.0,3),(David4,Warner4,4000.0,4),(David5,Warner5,5000.0,5)]
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+
+    Name:, Connection:3, Time:1, Success:True
+    Type:Prepared, Batch:True, QuerySize:1, BatchSize:5
+    Query:["insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)"]
+    Params:[(David6,Warner6,6000.0,6),(David7,Warner7,7000.0,7),(David8,Warner8,8000.0,8),(David9,Warner9,9000.0,9),(David10,Warner10,10000.0,10)]
+    ```
+
+    Here, we can clearly see that `Batch is True, QuerySize is 1 but BatchSize is 5`. It means, batch processing is enabled and working when we commit the transaction. Hibernate is sending the `INSERT` statements in batches of 5. At the JDBC level, these batched transactions are grouped into a single `INSERT` statement. So for every 5 employees, there is only 1 `INSERT` statement at the database level. But again we have a problem. As we can see, It first queues all the entities into the context and waits for committing the transaction. This can be a serious issue when we have to queue `thousands of entities instances into memory (1st-level cache)` before flushing them to the database. For sufficient large batches, it can lead to `OutOfMemoryError`.
+
+    **Batch Insert:** To overcome this problem, we need to `flush` and `clear` the session periodically. The session's flush() method triggers a transaction synchronization that sends all changes in the persistent entities to the database. Flushing is the process of synchronizing the underlying persistent store with a persistable state held in memory. The session’s clear() clears the session. It evicts all loaded instances from Session and cancels all pending saves, updates and deletions. In the given example, we are flushing and clearing the session after each batch (of size 5). So now, we queue 5 employees in the session and use the flush() method to insert these 5 employees in the database in a single batch statement. We can optimize more by disabling the second-level cache completely by settning this property in `hibernate.cfg.xml`.
+
+    ```java
+    hibernate.cache.use_second_level_cache=false
+    ```
+
+    ```java
+    Transaction transaction = session.beginTransaction();
+    for (int i = 1; i <= 10; i++) {
+      System.out.println("Statement Queued : " + i);
+      Employee employee = new Employee();
+      employee.setFirstName("David" + i);
+      employee.setLastName("Warner" + i);
+      employee.setSalary(1000 * i);
+      session.persist(employee);
+      if (i % 5 == 0) { // same as the JDBC batch size
+        session.flush(); // flush a batch of inserts and release memory:
+        session.clear();
+      }
+    }
+    transaction.commit();
+    ```
+
+    ```log
+    Statement Queued : 1
+    Statement Queued : 2
+    Statement Queued : 3
+    Statement Queued : 4
+    Statement Queued : 5
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+
+    Name:, Connection:3, Time:3, Success:True
+    Type:Prepared, Batch:True, QuerySize:1, BatchSize:5
+    Query:["insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)"]
+    Params:[(David1,Warner1,1000.0,1),(David2,Warner2,2000.0,2),(David3,Warner3,3000.0,3),(David4,Warner4,4000.0,4),(David5,Warner5,5000.0,5)]
+    Statement Queued : 6
+    Statement Queued : 7
+    Statement Queued : 8
+    Statement Queued : 9
+    Statement Queued : 10
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+
+    Name:, Connection:3, Time:2, Success:True
+    Type:Prepared, Batch:True, QuerySize:1, BatchSize:5
+    Query:["insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)"]
+    Params:[(David6,Warner6,6000.0,6),(David7,Warner7,7000.0,7),(David8,Warner8,8000.0,8),(David9,Warner9,9000.0,9),(David10,Warner10,10000.0,10)]
+    ```
+
+    We can notice the logs above. A batch of 5 statements in one query. Now this is much better code and provides excellent memory and runtime performance.
+
+    **Batch Inserts for Multiple Entities:** A limitation of hibernate batching is that it allows only one type of entity in a single batch. For a different entity, a second batch will be created. Let us understand with an example. Let’s create a 10 `Employees` and some `Accounts` associated with the Employee. In the following example, we are creating 10 `employees` and adding 3 `accounts` to each employee. It makes a total of 10 employees and 30 accounts.
+
+    ```java
+    Transaction transaction = session.beginTransaction();
+    for (int i = 1; i <= 10; i++) {
+      System.out.print("Employee Statement Queued: " + i + ", ");
+      List<Account> accounts = new ArrayList<>();
+      Employee employee = new Employee();
+      employee.setEid(i);
+      employee.setFirstName("David" + i);
+      employee.setLastName("Warner" + i);
+      employee.setSalary(1000 * i);
+      for (int j = i * 10; j < i * 10 + 3; j++) {
+        System.out.print(" Account:" + j);
+        Account account = new Account();
+        account.setAid(j);
+        account.setAccountNo("ACC" + i * j);
+        account.setBranch("Branch" + i * j);
+        account.setEmployee(employee);
+        accounts.add(account);
+      }
+      System.out.println();
+      employee.setAccounts(accounts);
+      session.persist(employee);
+      if (i % 5 == 0) { // same as the JDBC batch size
+        session.flush(); // flush a batch of inserts and release memory:
+        session.clear();
+      }
+    }
+    transaction.commit();
+    ```
+
+    ```log
+    Employee Statement Queued: 1,  Account:10 Account:11 Account:12
+    Employee Statement Queued: 2,  Account:20 Account:21 Account:22
+    Employee Statement Queued: 3,  Account:30 Account:31 Account:32
+    Employee Statement Queued: 4,  Account:40 Account:41 Account:42
+    Employee Statement Queued: 5,  Account:50 Account:51 Account:52
+
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Name:, Connection:3, Time:3, Success:True
+    Type:Prepared, Batch:True, QuerySize:1, BatchSize:1
+    Query:["insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)"]
+    Params:[(David1,Warner1,1000.0,1)]
+
+    Hibernate: insert into Account (accountNo, branch, employeeId, aid) values (?, ?, ?, ?)
+    Hibernate: insert into Account (accountNo, branch, employeeId, aid) values (?, ?, ?, ?)
+    Hibernate: insert into Account (accountNo, branch, employeeId, aid) values (?, ?, ?, ?)
+    Name:, Connection:3, Time:2, Success:True
+    Type:Prepared, Batch:True, QuerySize:1, BatchSize:3
+    Query:["insert into Account (accountNo, branch, employeeId, aid) values (?, ?, ?, ?)"]
+    Params:[(ACC10,Branch10,1,10),(ACC11,Branch11,1,11),(ACC12,Branch12,1,12)]
+    ...
+    ...
+    ...
+    Hibernate: insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)
+    Name:, Connection:3, Time:1, Success:True
+    Type:Prepared, Batch:True, QuerySize:1, BatchSize:1
+    Query:["insert into Employee (firstName, lastName, salary, eid) values (?, ?, ?, ?)"]
+    Params:[(David10,Warner10,10000.0,10)]
+
+    Hibernate: insert into Account (accountNo, branch, employeeId, aid) values (?, ?, ?, ?)
+    Hibernate: insert into Account (accountNo, branch, employeeId, aid) values (?, ?, ?, ?)
+    Hibernate: insert into Account (accountNo, branch, employeeId, aid) values (?, ?, ?, ?)
+    Name:, Connection:3, Time:1, Success:True
+    Type:Prepared, Batch:True, QuerySize:1, BatchSize:3
+    Query:["insert into Account (accountNo, branch, employeeId, aid) values (?, ?, ?, ?)"]
+    Params:[(ACC1000,Branch1000,10,100),(ACC1010,Branch1010,10,101),(ACC1020,Branch1020,10,102)]
+    ```
+
+    Notice the logs. All the `employees` go into the database in a separate batch. Similarly, `accounts` also go in 10 separate batches. So there is a total of `20 SQL INSERT` statements executed in this process. To improve the performance, ideally all 10 `employees` should go in the database in a `single SQL INSERT` statement. And all the 30 `accounts` should go in the database in the `second INSERT statement`. So it should really take just 2 INSERT statements in the whole process. Hibernate provides `hibernate.order_inserts` property that can be used to force Hibernate to order inserts to allow for more batching. The official documentation cautions against it as a performance hit, so benchmark before and after to see if this actually helps or hurts our application.
+
+    ```java
+    settings.put("hibernate.order_inserts", true);
+    //or
+    hibernate.order_inserts = true
+    ```
+
+    In Spring boot applications, we can force insert order using the following property.
+
+    ```
+    spring.jpa.properties.hibernate.order_inserts = true
+    ```
+
+    After configuring the the above property, for batch size 5, there will be 2 insert for employees(total 10) and 6 insert query for accounts(total 30).
+
+    Similar to insert ordering, we can force hibernate to group `SQL UPDATE` statements in situations like the above.
+
+    ```java
+    settings.put("hibernate.order_updates", "true");
+    settings.put("hibernate.batch_versioned_data", "true");
+    ```
+
+    And if we are using Spring Boot, we need to add these to the application.properties:
+    spring.jpa.properties.hibernate.order_updates=true
+    spring.jpa.properties.hibernate.batch_versioned_data=true
+
+    **Batch Update:** For retrieving and updating data, the same ideas apply. In addition, we need to use `scroll()` method to take advantage of server-side cursors for queries that return many rows of data. Lets first save the 10 employees then update using below code and see the logs.
+
+    ```java
+    Transaction transaction = session.beginTransaction();
+    Query<Employee> fromQuery = session.createQuery("from Employee", Employee.class);
+    fromQuery.setCacheMode(CacheMode.IGNORE);
+    fromQuery.scroll(ScrollMode.FORWARD_ONLY);
+    ScrollableResults<Employee> scrollableResults = fromQuery.scroll();
+    int count = 0;
+    while (scrollableResults.next()) {
+      ++count;
+      Employee employee = scrollableResults.get();
+      employee.setFirstName(employee.getFirstName() + count);
+      employee.setLastName(employee.getLastName() + count);
+      employee.setSalary(employee.getSalary() * count);
+      if (count % 5 == 0) {
+        session.flush();
+        session.clear();
+      }
+    }
+    transaction.commit();
+    ```
+    ```log
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0
+    Name:, Connection:3, Time:1, Success:True
+    Type:Prepared, Batch:False, QuerySize:1, BatchSize:0
+    Query:["select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0"]
+    Params:[()]
+
+    Hibernate: update Employee set firstName=?, lastName=?, salary=? where eid=?
+    Hibernate: update Employee set firstName=?, lastName=?, salary=? where eid=?
+    Hibernate: update Employee set firstName=?, lastName=?, salary=? where eid=?
+    Hibernate: update Employee set firstName=?, lastName=?, salary=? where eid=?
+    Hibernate: update Employee set firstName=?, lastName=?, salary=? where eid=?
+    Name:, Connection:3, Time:2, Success:True
+    Type:Prepared, Batch:True, QuerySize:1, BatchSize:5
+    Query:["update Employee set firstName=?, lastName=?, salary=? where eid=?"]
+    Params:[(David11,Warner11,1000.0,1),(David22,Warner22,4000.0,2),(David33,Warner33,9000.0,3),(David44,Warner44,16000.0,4),(David55,Warner55,25000.0,5)]
+
+    Hibernate: update Employee set firstName=?, lastName=?, salary=? where eid=?
+    Hibernate: update Employee set firstName=?, lastName=?, salary=? where eid=?
+    Hibernate: update Employee set firstName=?, lastName=?, salary=? where eid=?
+    Hibernate: update Employee set firstName=?, lastName=?, salary=? where eid=?
+    Hibernate: update Employee set firstName=?, lastName=?, salary=? where eid=?
+    Name:, Connection:3, Time:2, Success:True
+    Type:Prepared, Batch:True, QuerySize:1, BatchSize:5
+    Query:["update Employee set firstName=?, lastName=?, salary=? where eid=?"]
+    Params:[(David66,Warner66,36000.0,6),(David77,Warner77,49000.0,7),(David88,Warner88,64000.0,8),(David99,Warner99,81000.0,9),(David1010,Warner1010,100000.0,10)]
+    ```

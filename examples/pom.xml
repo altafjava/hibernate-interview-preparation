@@ -53,6 +53,12 @@
 			<artifactId>jaxb-impl</artifactId>
 			<version>${jaxb.version}</version>
 		</dependency>
+		<!-- datasource-proxy is not for Production use -->
+		<dependency>
+			<groupId>net.ttddyy</groupId>
+			<artifactId>datasource-proxy</artifactId>
+			<version>1.8</version>
+		</dependency>
 	</dependencies>
 	<build>
 		<plugins>

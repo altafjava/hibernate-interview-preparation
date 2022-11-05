@@ -22,6 +22,10 @@
 		<property name="hibernate.javax.cache.uri">ehcache.xml</property>		
 		<property name="hibernate.generate_statistics">false</property>
 		
+		<property name="hibernate.jdbc.batch_size">5</property>
+		
+		<property name="hibernate.order_inserts">true</property>
+		
 		<!-- <property name="hibernate.c3p0.min_size">10</property>
 		<property name="hibernate.c3p0.max_size">20</property>
 		<property name="hibernate.c3p0.acquire_increment">1</property>
@@ -75,6 +79,10 @@
 		<!-- <mapping class="com.altafjava.cache.secondlevel.Employee" /> -->
 		<!-- <mapping class="com.altafjava.cache.querylevel.Employee" /> -->
 		<!-- <mapping class="com.altafjava.pagination.offsetlimit.Employee" /> -->
-		<mapping class="com.altafjava.pagination.scrollable.Employee" />
+		<!-- <mapping class="com.altafjava.pagination.scrollable.Employee" /> -->
+		<!-- <mapping class="com.altafjava.batch.singleentity.Employee" /> -->
+		<!-- <mapping class="com.altafjava.batch.multipleentities.Employee" />
+		<mapping class="com.altafjava.batch.multipleentities.Account" /> -->
+		<mapping class="com.altafjava.batch.update.Employee" />
 	</session-factory>
 </hibernate-configuration>
