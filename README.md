@@ -3008,6 +3008,7 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     }
     transaction.commit();
     ```
+
     ```log
     Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0
     Name:, Connection:3, Time:1, Success:True
@@ -3034,4 +3035,157 @@ insert into Employee (email, firstName, lastName) values (?, ?, ?)
     Type:Prepared, Batch:True, QuerySize:1, BatchSize:5
     Query:["update Employee set firstName=?, lastName=?, salary=? where eid=?"]
     Params:[(David66,Warner66,36000.0,6),(David77,Warner77,49000.0,7),(David88,Warner88,64000.0,8),(David99,Warner99,81000.0,9),(David1010,Warner1010,100000.0,10)]
+    ```
+
+52. N+1 Problem
+
+    By default Hibernate uses fetch mode as `SELECT`. It means, we have 2 associated entities(say Employee & Account) and we want to fetch the parent entity(Employee) from database then it fires 2 select queries. One is for the Employee & another is for Account.
+
+    ```java
+    public class Employee implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int eid;
+      private String firstName;
+      private String lastName;
+      private double salary;
+      @OneToMany(cascade = CascadeType.PERSIST, mappedBy = "employee")
+      private List<Account> accounts;
+    }
+    public class Account implements Serializable {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private int aid;
+      private String accountNo;
+      private String branch;
+      @ManyToOne(cascade = CascadeType.PERSIST)
+      @JoinColumn(name = "employeeId")
+      private Employee employee;
+    }
+    ```
+
+    ```java
+    // to save an employee with 2 accounts
+    Transaction transaction = session.beginTransaction();
+    Employee employee = new Employee();
+    employee.setFirstName("David");
+    employee.setLastName("Warner");
+    employee.setSalary(56789);
+    Account account = new Account();
+    account.setAccountNo("ACC");
+    account.setBranch("Australia");
+    account.setEmployee(employee);
+    List<Account> accounts = new ArrayList<>();
+    accounts.add(account);
+    account = new Account();
+    account.setAccountNo("BCC567");
+    account.setBranch("New Zealand");
+    accounts.add(account);
+    employee.setAccounts(accounts);
+    account.setEmployee(employee);
+    session.persist(employee);
+    transaction.commit();
+    ```
+
+    ```java
+    // To fetch the employee
+    Employee employee = session.get(Employee.class, 1);
+    System.out.println(employee);
+    ```
+
+    ```sql
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0 where e1_0.eid=?
+    Hibernate: select a1_0.employeeId,a1_0.aid,a1_0.accountNo,a1_0.branch from Account a1_0 where a1_0.employeeId=?
+
+    Employee(eid=1, firstName=David, lastName=Warner, salary=56789.0, accounts=[Account(aid=1, accountNo=ACC, branch=Australia), Account(aid=2, accountNo=BCC567, branch=New Zealand)])
+    ```
+
+    As we can see here one select query is for parent and one is for child. Currently we have only one parent for these childs. Thats why, 1 select query for child table. If we had 100 parents then 100 times select query would have been executed for the childs. This is nothing but N+1 problem. Here N is the no of parent table. As many no of parent will be there, same no of the child select query will be executed. Lets see in the other example will multiple parents.
+
+    ```java
+    // Save multiple employees
+    Transaction transaction = session.beginTransaction();
+    for (int i = 1; i <= 10; i++) {
+      Employee employee = new Employee();
+      employee.setFirstName("David");
+      employee.setLastName("Warner");
+      employee.setSalary(1000 * i);
+      Account account = new Account();
+      account.setAccountNo("ACC" + i);
+      account.setBranch("Australia" + i);
+      account.setEmployee(employee);
+      List<Account> accounts = new ArrayList<>();
+      accounts.add(account);
+      account = new Account();
+      account.setAccountNo("BCC567" + i);
+      account.setBranch("New Zealand" + i);
+      accounts.add(account);
+      employee.setAccounts(accounts);
+      account.setEmployee(employee);
+      session.persist(employee);
+    }
+    transaction.commit();
+    ```
+
+    ```java
+    import org.hibernate.query.Query;
+    String problemQuery = "FROM Employee";
+    Query<Employee> fromQuery = session.createQuery(problemQuery, Employee.class);
+    List<Employee> employees = fromQuery.list();
+    for (Employee employee : employees) {
+      List<Account> accounts = employee.getAccounts();
+      System.out.println(employee);
+      for (Account account : accounts) {
+        System.out.println(account);
+      }
+      System.out.println();
+    }
+    ```
+
+    ```sql
+    Hibernate: select e1_0.eid,e1_0.firstName,e1_0.lastName,e1_0.salary from Employee e1_0
+    Hibernate: select a1_0.employeeId,a1_0.aid,a1_0.accountNo,a1_0.branch from Account a1_0 where a1_0.employeeId=?
+    Employee(eid=1, firstName=David, lastName=Warner, salary=56789.0, accounts=[Account(aid=1, accountNo=ACC1, branch=Australia1), Account(aid=2, accountNo=BCC5671, branch=New Zealand1)])
+    Account(aid=1, accountNo=ACC1, branch=Australia1)
+    Account(aid=2, accountNo=BCC5671, branch=New Zealand1)
+
+    Hibernate: select a1_0.employeeId,a1_0.aid,a1_0.accountNo,a1_0.branch from Account a1_0 where a1_0.employeeId=?
+    Employee(eid=2, firstName=David, lastName=Warner, salary=56789.0, accounts=[Account(aid=3, accountNo=ACC2, branch=Australia2), Account(aid=4, accountNo=BCC5672, branch=New Zealand2)])
+    Account(aid=3, accountNo=ACC2, branch=Australia2)
+    Account(aid=4, accountNo=BCC5672, branch=New Zealand2)
+    ...
+    ...
+    Hibernate: select a1_0.employeeId,a1_0.aid,a1_0.accountNo,a1_0.branch from Account a1_0 where a1_0.employeeId=?
+    Employee(eid=10, firstName=David, lastName=Warner, salary=56789.0, accounts=[Account(aid=19, accountNo=ACC5, branch=Australia5), Account(aid=20, accountNo=BCC5675, branch=New Zealand5)])
+    Account(aid=19, accountNo=ACC5, branch=Australia5)
+    Account(aid=20, accountNo=BCC5675, branch=New Zealand5)
+    ```
+
+    As we can see the logs, it generated 1 query for Employee & 10 queries for Account because we have 10 Employees.
+
+    **N+1 Solution:** We can solve this by using `FETCH` strategy. We can use this either in `HQL` or `Criteria`. We can use one of the following `HQL` query to solve the N+1 problem.
+
+    ```java
+    String query = "FROM Employee e LEFT JOIN FETCH e.accounts";
+    String query = "FROM Employee e JOIN FETCH e.accounts";
+    ```
+
+    If we are using `Criteria` then we can set the `JoinType.LEFT` in the `fetch()` method.
+
+    ```java
+    CriteriaBuilder criteriaBuilder = session.getCriteriaBuilder();
+    CriteriaQuery<Employee> criteriaQuery = criteriaBuilder.createQuery(Employee.class);
+    Root<Employee> rootEmployee = criteriaQuery.from(Employee.class);
+    rootEmployee.fetch("accounts", JoinType.LEFT);
+    CriteriaQuery<Employee> selectEmployee = criteriaQuery.select(rootEmployee);
+    Query<Employee> query = session.createQuery(selectEmployee);
+    List<Employee> employees = query.list();
+    for (Employee employee : employees) {
+      System.out.print(employee.getFirstName() + ": ");
+      List<Account> accounts = employee.getAccounts();
+      for (Account account : accounts) {
+        System.out.print(account.getAccountNo() + " ");
+      }
+      System.out.println();
+    }
     ```

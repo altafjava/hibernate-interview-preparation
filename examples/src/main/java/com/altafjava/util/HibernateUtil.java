@@ -1,7 +1,5 @@
 package com.altafjava.util;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import javax.sql.DataSource;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.Metadata;
@@ -9,7 +7,6 @@ import org.hibernate.boot.MetadataSources;
 import org.hibernate.boot.registry.BootstrapServiceRegistryBuilder;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
-import org.hibernate.cfg.Environment;
 import com.mysql.jdbc.jdbc2.optional.MysqlDataSource;
 import net.ttddyy.dsproxy.support.ProxyDataSource;
 import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
@@ -17,14 +14,16 @@ import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
 public class HibernateUtil {
 	private static SessionFactory sessionFactory = null;
 	static {
-		BootstrapServiceRegistryBuilder bootstrapServiceRegistryBuilder = new BootstrapServiceRegistryBuilder();
-		bootstrapServiceRegistryBuilder.applyIntegrator(new IntegratorImpl());
+//		BootstrapServiceRegistryBuilder bootstrapServiceRegistryBuilder = new BootstrapServiceRegistryBuilder();
+//		bootstrapServiceRegistryBuilder.applyIntegrator(new IntegratorImpl());
 //		BootstrapServiceRegistry bootstrapServiceRegistry = bootstrapServiceRegistryBuilder.build();
 //		StandardServiceRegistry standardServiceRegistry = new StandardServiceRegistryBuilder(bootstrapServiceRegistry).configure().build();
-		Map<String, Object> dataSourceMap = new LinkedHashMap<>();
-		dataSourceMap.put(Environment.DATASOURCE, getDataSource());
-//		StandardServiceRegistry standardServiceRegistry = new StandardServiceRegistryBuilder().configure().build();
-		StandardServiceRegistry standardServiceRegistry = new StandardServiceRegistryBuilder().configure().applySettings(dataSourceMap).build();
+		
+//		Map<String, Object> dataSourceMap = new LinkedHashMap<>();
+//		dataSourceMap.put(Environment.DATASOURCE, getProxyDataSource());
+//		StandardServiceRegistry standardServiceRegistry = new StandardServiceRegistryBuilder().configure().applySettings(dataSourceMap).build();
+		
+		StandardServiceRegistry standardServiceRegistry = new StandardServiceRegistryBuilder().configure().build();
 		Metadata metadata = new MetadataSources().getMetadataBuilder(standardServiceRegistry).build();
 		sessionFactory = metadata.getSessionFactoryBuilder().build();
 	}
@@ -40,7 +39,7 @@ public class HibernateUtil {
 		}
 	}
 
-	private static DataSource getDataSource() {
+	private static DataSource getProxyDataSource() {
 		MysqlDataSource mysqlDataSource = new MysqlDataSource();
 		mysqlDataSource.setUrl("jdbc:mysql://localhost:3306/test?createDatabaseIfNotExist=true");
 		mysqlDataSource.setUser("root");

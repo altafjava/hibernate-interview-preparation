@@ -83,6 +83,12 @@
 		<!-- <mapping class="com.altafjava.batch.singleentity.Employee" /> -->
 		<!-- <mapping class="com.altafjava.batch.multipleentities.Employee" />
 		<mapping class="com.altafjava.batch.multipleentities.Account" /> -->
-		<mapping class="com.altafjava.batch.update.Employee" />
+		<!-- <mapping class="com.altafjava.batch.update.Employee" /> -->
+		<!-- <mapping class="com.altafjava.nplusone.single.Employee" />
+		<mapping class="com.altafjava.nplusone.single.Account" /> -->
+		<!-- <mapping class="com.altafjava.nplusone.multiple.hql.Employee" />
+		<mapping class="com.altafjava.nplusone.multiple.hql.Account" /> -->
+		<mapping class="com.altafjava.nplusone.multiple.criteria.Employee" />
+		<mapping class="com.altafjava.nplusone.multiple.criteria.Account" />
 	</session-factory>
 </hibernate-configuration>
